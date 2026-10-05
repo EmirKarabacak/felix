@@ -6,7 +6,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PGBIN="${PGBIN:-$(dirname "$(command -v initdb || echo /usr/lib/postgresql/16/bin/initdb)")}"
 DATA="$(mktemp -d)"
-PORT="${PGPORT_TEST:-54329}"
+PORT="${PGPORT_TEST:-54330}"
 RUNAS=""
 if [ "$(id -u)" = "0" ]; then
   chown postgres "$DATA"
