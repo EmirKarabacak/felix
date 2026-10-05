@@ -7,15 +7,16 @@
 
 alter type public.step_status add value if not exists 'review';
 
+-- Every statement in this file is safe to run more than once.
 alter table public.step_types
-  add column needs_approval boolean not null default false;
+  add column if not exists needs_approval boolean not null default false;
 
 -- Each step keeps its own copy of the setting, taken from its type when the
 -- step is created, so changing a type later does not change running projects.
 alter table public.project_steps
-  add column needs_approval boolean not null default false,
-  add column submitted_at timestamptz,
-  add column review_note text;
+  add column if not exists needs_approval boolean not null default false,
+  add column if not exists submitted_at timestamptz,
+  add column if not exists review_note text;
 
 create or replace function public.create_project(
   p_name text,
