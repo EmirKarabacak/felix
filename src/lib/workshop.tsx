@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { friendly } from './errors'
 import { supabase, type Meslek, type Profile } from './supabase'
 
-export type StepStatus = 'waiting' | 'active' | 'problem' | 'done'
+export type StepStatus = 'waiting' | 'active' | 'problem' | 'review' | 'done'
 
 export type Project = {
   id: string
@@ -25,6 +25,11 @@ export type Step = {
   problem_note: string | null
   started_at: string | null
   finished_at: string | null
+  /** A worker's finish waits for a manager before the step counts as done. */
+  needs_approval: boolean
+  submitted_at: string | null
+  /** Why a manager sent the step back, shown to the worker until it is handed in again. */
+  review_note: string | null
 }
 
 export type NamedItem = { id: string; name: string }
@@ -39,6 +44,7 @@ export type CompanyDetails = {
   address: string | null
   notes: string | null
 }
+export type StepType = NamedItem & { needs_approval: boolean }
 export type ProjectTypeStep = { id: string; project_type_id: string; step_type_id: string; position: number }
 
 type Raw = {
@@ -47,7 +53,7 @@ type Raw = {
   assignees: { step_id: string; user_id: string }[]
   people: Profile[]
   meslekler: Meslek[]
-  stepTypes: NamedItem[]
+  stepTypes: StepType[]
   projectTypes: NamedItem[]
   projectTypeSteps: ProjectTypeStep[]
   companies: Company[]
@@ -86,12 +92,14 @@ async function load(): Promise<Raw> {
     supabase.from('projects').select('id, code, name, due_date, project_type_id, company_id, created_at').order('created_at'),
     supabase
       .from('project_steps')
-      .select('id, project_id, name, position, due_date, status, problem_reason, problem_note, started_at, finished_at')
+      .select(
+        'id, project_id, name, position, due_date, status, problem_reason, problem_note, started_at, finished_at, needs_approval, submitted_at, review_note',
+      )
       .order('position'),
     supabase.from('step_assignees').select('step_id, user_id'),
     supabase.from('profiles').select('id, full_name, username, panel, meslek_id, active').order('full_name'),
     supabase.from('meslek_turleri').select('id, name').order('name'),
-    supabase.from('step_types').select('id, name').order('name'),
+    supabase.from('step_types').select('id, name, needs_approval').order('name'),
     supabase.from('project_types').select('id, name').order('name'),
     supabase.from('project_type_steps').select('id, project_type_id, step_type_id, position').order('position'),
     supabase.from('companies').select('id, name').order('name'),
@@ -105,7 +113,7 @@ async function load(): Promise<Raw> {
     assignees: assignees.data as Raw['assignees'],
     people: people.data as Profile[],
     meslekler: meslekler.data as Meslek[],
-    stepTypes: stepTypes.data as NamedItem[],
+    stepTypes: stepTypes.data as StepType[],
     projectTypes: projectTypes.data as NamedItem[],
     projectTypeSteps: projectTypeSteps.data as ProjectTypeStep[],
     companies: companies.data as Company[],
@@ -231,7 +239,7 @@ const DAY_YEAR = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'shor
 const MOMENT = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 /** A stored date ("2026-10-24") as a local calendar day, never shifted by time zone. */
-function parseDay(value: string): Date {
+export function parseDay(value: string): Date {
   const [y, m, d] = value.slice(0, 10).split('-').map(Number)
   return new Date(y, m - 1, d)
 }
@@ -257,12 +265,13 @@ export function isLate(step: Pick<Step, 'due_date' | 'status'>): boolean {
   return step.status !== 'done' && !!step.due_date && step.due_date.slice(0, 10) < today()
 }
 
-export type Shown = 'done' | 'problem' | 'late' | 'active' | 'waiting'
+export type Shown = 'done' | 'problem' | 'review' | 'late' | 'active' | 'waiting'
 
 /** What a step is shown as. A problem outranks lateness; lateness outranks the rest. */
 export function shownStatus(step: Pick<Step, 'due_date' | 'status'>): Shown {
   if (step.status === 'done') return 'done'
   if (step.status === 'problem') return 'problem'
+  if (step.status === 'review') return 'review'
   if (isLate(step)) return 'late'
   return step.status
 }
@@ -270,6 +279,7 @@ export function shownStatus(step: Pick<Step, 'due_date' | 'status'>): Shown {
 export const SHOWN_LABEL: Record<Shown, string> = {
   done: 'Bitti',
   problem: 'Sorun bildirildi',
+  review: 'Onay bekliyor',
   late: 'Gecikti',
   active: 'Devam ediyor',
   waiting: 'Bekliyor',
@@ -283,7 +293,9 @@ export function isFinished(steps: Step[]): boolean {
 }
 
 /** Calls the one function that changes a step's status (see the stage 2 migration). */
-export function stepAction(stepId: string, action: 'start' | 'finish' | 'problem' | 'reopen' | 'reset', reason?: string, note?: string) {
+export type StepActionName = 'start' | 'finish' | 'problem' | 'approve' | 'reject' | 'reopen' | 'reset'
+
+export function stepAction(stepId: string, action: StepActionName, reason?: string, note?: string) {
   return supabase.rpc('step_action', {
     p_step_id: stepId,
     p_action: action,

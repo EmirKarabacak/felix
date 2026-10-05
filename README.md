@@ -17,6 +17,10 @@ every project visible read-only to workers.
 **Firmalar (done):** customer companies with contact details (visible to the
 CEO and managers only), chosen when creating a project.
 
+**Approval and Takvim (done):** step types can require a manager's approval
+before a worker's finish counts; Projeler has a second view, Takvim, showing
+projects as bars on a calendar.
+
 Still to come (stage 3): project chat, notifications, drawings and photos,
 time and history views, workload view.
 
@@ -50,6 +54,8 @@ VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_SUPABASE_ANON_KEY=<key> \
   FELIX_API_PROXY=http://127.0.0.1:54321 npx vite
 scripts/local-up.sh && node scripts/e2e-stage1.mjs   # browser run of stage 1
 scripts/local-up.sh && node scripts/e2e-stage2.mjs   # browser run of stage 2
+scripts/local-up.sh && node scripts/e2e-companies.mjs
+scripts/local-up.sh && node scripts/e2e-approval.mjs
 ```
 
 The local stand-in (`scripts/local-stack.ts`) is for testing only. It mimics

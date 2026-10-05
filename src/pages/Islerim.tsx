@@ -22,6 +22,7 @@ export function Islerim() {
       { title: 'Sorun bildirilenler', steps: mine.filter((s) => s.status === 'problem').sort(byDue) },
       { title: 'Devam eden', steps: mine.filter((s) => s.status === 'active').sort(byDue) },
       { title: 'Bekleyen', steps: mine.filter((s) => s.status === 'waiting').sort(byDue) },
+      { title: 'Onay bekleyen', steps: mine.filter((s) => s.status === 'review').sort(byDue) },
       {
         title: 'Son bitenler',
         steps: mine
@@ -64,6 +65,7 @@ export function Islerim() {
                       <StatusBadge step={s} />
                     </span>
                     <span className="job-name">{s.name}</span>
+                    {s.review_note && s.status !== 'review' ? <span className="badge status-problem">Geri gönderildi</span> : null}
                     <span className="sub">{project?.name}</span>
                     {s.due_date ? <span className="sub">Bitiş: {formatDay(s.due_date)}</span> : null}
                   </button>

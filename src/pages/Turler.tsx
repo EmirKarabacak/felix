@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { EditableList } from '../components/EditableList'
-import { ErrorNote, Icon, Spinner } from '../components/ui'
+import { ErrorNote, Icon, Spinner, Switch } from '../components/ui'
 import { supabase } from '../lib/supabase'
 import { useWorkshop, type Workshop } from '../lib/workshop'
 
@@ -36,6 +36,10 @@ export function Turler() {
 
       <section className="stack narrow-section" aria-label="Adım türleri">
         <h3>Adım Türleri</h3>
+        <div className="sub">
+          "Onay gerekir" açık olan türlerde, işçi işi bitirdiğinde adım bir yönetici onaylayana kadar bitmiş sayılmaz. Bu
+          ayar yeni eklenen adımlar için geçerlidir.
+        </div>
         <EditableList
           items={data.stepTypes}
           noun="adım türü"
@@ -47,6 +51,20 @@ export function Turler() {
           deleteWarning={(item) => {
             const n = new Set(data.projectTypeSteps.filter((s) => s.step_type_id === item.id).map((s) => s.project_type_id)).size
             return n ? `${item.name}: ${n} proje türünden de çıkarılır.` : null
+          }}
+          extra={(item) => {
+            const type = data.stepTypes.find((t) => t.id === item.id)
+            const on = !!type?.needs_approval
+            return (
+              <label className="mini-switch" title="Açıksa işçi bitirince adım yönetici onayını bekler">
+                <span>Onay gerekir</span>
+                <Switch
+                  checked={on}
+                  label={`${item.name}: onay gerekir`}
+                  onChange={(next) => change(() => supabase.from('step_types').update({ needs_approval: next }).eq('id', item.id))}
+                />
+              </label>
+            )
           }}
           onCreate={(name) => change(() => supabase.from('step_types').insert({ name }))}
           onRename={(item, name) => change(() => supabase.from('step_types').update({ name }).eq('id', item.id))}

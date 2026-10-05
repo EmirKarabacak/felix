@@ -1,4 +1,4 @@
-import { Component, useEffect, useId, useRef, type ReactNode } from 'react'
+import { Component, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 
 // Felix's icons are drawn here, in one family: a 24-unit grid, rounded line
 // ends, one line weight, and corners rounded to match. Icons that mark a place
@@ -202,6 +202,46 @@ export function Field({
       {children(id)}
       {hint ? <div className="hint">{hint}</div> : null}
     </div>
+  )
+}
+
+/**
+ * An on/off switch that moves the moment it is touched and saves in the
+ * background. If saving fails it moves back, so it never shows a state the
+ * server does not have for long.
+ */
+export function Switch({
+  checked,
+  label,
+  disabled,
+  onChange,
+}: {
+  checked: boolean
+  /** Read by screen readers when there is no visible label wrapping the switch. */
+  label?: string
+  disabled?: boolean
+  onChange: (next: boolean) => Promise<unknown>
+}) {
+  const [pending, setPending] = useState<boolean | null>(null)
+  // Once the saved value catches up with what was tapped, stop overriding it.
+  useEffect(() => {
+    if (pending !== null && pending === checked) setPending(null)
+  }, [checked, pending])
+
+  return (
+    <input
+      type="checkbox"
+      role="switch"
+      className="switch"
+      aria-label={label}
+      checked={pending ?? checked}
+      disabled={disabled}
+      onChange={(e) => {
+        const next = e.target.checked
+        setPending(next)
+        void onChange(next).finally(() => setPending((now) => (now === next ? null : now)))
+      }}
+    />
   )
 }
 

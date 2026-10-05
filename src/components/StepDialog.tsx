@@ -11,7 +11,7 @@ import {
   useWorkshop,
   type Step,
 } from '../lib/workshop'
-import { Dialog, ErrorNote, Field, Icon } from './ui'
+import { Dialog, ErrorNote, Field, Icon, Switch } from './ui'
 
 export function StatusBadge({ step }: { step: Pick<Step, 'due_date' | 'status'> }) {
   const shown = shownStatus(step)
@@ -32,6 +32,8 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
   const [reason, setReason] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const [rejecting, setRejecting] = useState(false)
+  const [rejectNote, setRejectNote] = useState('')
 
   const step = data?.steps.find((s) => s.id === stepId)
   if (!data || !step) return null // removed by someone else while open
@@ -88,6 +90,44 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
   }
 
   const subtitle = [project?.code, project?.name].filter(Boolean).join(' · ')
+  // A worker's finish on such a step goes to a manager first.
+  const handsIn = step.needs_approval && !manages
+
+  if (rejecting) {
+    return (
+      <Dialog title="Geri gönder" subtitle={step.name} onClose={() => setRejecting(false)}>
+        <Field label="Neden geri gönderiyorsunuz?" hint="İşçi bu notu görür. Örnek: neyin yeniden yapılması gerekiyor.">
+          {(id) => (
+            <textarea
+              id={id}
+              className="input textarea"
+              rows={3}
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+              maxLength={400}
+            />
+          )}
+        </Field>
+        <ErrorNote>{error}</ErrorNote>
+        <button
+          type="button"
+          className="btn btn-warn btn-big press"
+          disabled={busy || !rejectNote.trim()}
+          onClick={() =>
+            void run(
+              () => stepAction(step.id, 'reject', undefined, rejectNote),
+              () => {
+                setRejecting(false)
+                setRejectNote('')
+              },
+            )
+          }
+        >
+          {busy ? 'Gönderiliyor…' : 'İşçiye geri gönder'}
+        </button>
+      </Dialog>
+    )
+  }
 
   if (reporting) {
     return (
@@ -120,11 +160,33 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
         </div>
       ) : null}
 
+      {step.status === 'review' ? (
+        <div className="note note-review" role="status">
+          <strong>{manages ? 'Bu iş onayınızı bekliyor.' : 'Yönetici onayı bekleniyor.'}</strong>
+          {step.submitted_at ? <div>Teslim edildi: {formatMoment(step.submitted_at)}</div> : null}
+        </div>
+      ) : null}
+      {step.review_note && step.status !== 'review' && step.status !== 'done' ? (
+        <div className="note note-warn" role="status">
+          <strong>Yönetici geri gönderdi</strong>
+          <div>{step.review_note}</div>
+        </div>
+      ) : null}
+
       <div className="card rows facts">
         <div className="fact">
           <span>Durum</span>
           <StatusBadge step={step} />
         </div>
+        {manages ? (
+          <label className="fact">
+            <span>Onay gerekir</span>
+            <Switch
+              checked={step.needs_approval}
+              onChange={(next) => run(() => supabase.from('project_steps').update({ needs_approval: next }).eq('id', step.id))}
+            />
+          </label>
+        ) : null}
         {manages ? (
           <label className="fact">
             <span>Bitiş tarihi</span>
@@ -174,7 +236,7 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
               disabled={busy}
               onClick={() => void act('finish')}
             >
-              İşi bitir
+              {handsIn ? 'Bitir ve onaya gönder' : 'İşi bitir'}
             </button>
           ) : null}
           {step.status === 'problem' ? (
@@ -186,6 +248,16 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
             <button type="button" className="btn btn-warn-quiet btn-big press" disabled={busy} onClick={() => setReporting(true)}>
               Sorun bildir
             </button>
+          ) : null}
+          {manages && step.status === 'review' ? (
+            <>
+              <button type="button" className="btn btn-go btn-big press" disabled={busy} onClick={() => void act('approve')}>
+                Onayla
+              </button>
+              <button type="button" className="btn btn-warn-quiet btn-big press" disabled={busy} onClick={() => setRejecting(true)}>
+                Geri gönder
+              </button>
+            </>
           ) : null}
           {manages && step.status === 'done' ? (
             <button type="button" className="btn btn-tint btn-big press" disabled={busy} onClick={() => void act('reopen')}>

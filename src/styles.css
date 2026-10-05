@@ -20,6 +20,8 @@
   --ok-tint: #e3f4e8;
   --warn-ink: #8a4500;
   --warn-tint: #fdebd7;
+  --review-ink: #53259b;
+  --review-tint: #efe6fb;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
   --shadow-dialog: 0 24px 60px rgba(0, 0, 0, 0.3);
   --r-min: 10px;
@@ -137,6 +139,7 @@ button:disabled {
   justify-content: center;
   gap: 0.375rem;
   white-space: nowrap;
+  text-decoration: none;
 }
 
 .btn-primary {
@@ -600,12 +603,14 @@ select.input {
 .status-active { background: var(--accent-tint); color: var(--accent-ink); }
 .status-problem { background: var(--warn-tint); color: var(--warn-ink); }
 .status-late { background: var(--danger-tint); color: var(--danger-ink); }
+.status-review { background: var(--review-tint); color: var(--review-ink); }
 .status-waiting { background: #efeff2; color: #48484c; }
 
 .seg-done { background: #248a3d; }
 .seg-active { background: var(--accent); }
 .seg-problem { background: #c25e00; }
 .seg-late { background: #d12f26; }
+.seg-review { background: #7a4ac2; }
 .seg-waiting { background: #d8d8dd; }
 
 .strip {
@@ -649,6 +654,12 @@ select.input {
   color: var(--warn-ink);
 }
 
+.note-review {
+  background: var(--review-tint);
+  color: var(--review-ink);
+}
+
+.note-review div,
 .note-warn div {
   font-weight: 400;
   margin-top: 0.125rem;
@@ -702,7 +713,7 @@ select.input {
 /* Projeler */
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0.75rem;
 }
 
@@ -727,6 +738,7 @@ select.input {
 .tone-active { color: var(--accent-ink); }
 .tone-late { color: var(--danger-ink); }
 .tone-problem { color: var(--warn-ink); }
+.tone-review { color: var(--review-ink); }
 
 .problems {
   padding: 0 0.75rem 0 1rem;
@@ -802,6 +814,191 @@ select.input {
   padding: 0.625rem 0.875rem 0.625rem 2.25rem;
   font-size: 0.9375rem;
   line-height: 1.7;
+}
+
+.view-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.review-icon {
+  background: var(--review-tint);
+  color: var(--review-ink);
+}
+
+/* Takvim: projects as bars on a calendar */
+.tl {
+  --tl-label: 220px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 0;
+}
+
+.tl-inner {
+  position: relative;
+}
+
+.tl-head,
+.tl-row {
+  display: flex;
+}
+
+.tl-head {
+  height: 52px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.tl-corner,
+.tl-label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  flex: 0 0 var(--tl-label);
+  width: var(--tl-label);
+  box-sizing: border-box;
+  background: var(--surface);
+  border-right: 1px solid var(--hair);
+  padding: 0 0.75rem 0 1rem;
+}
+
+.tl-corner {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.tl-label {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: var(--ink);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.tl-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tl-label .sub {
+  font-size: 0.8125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tl-axis {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.tl-month,
+.tl-week {
+  position: absolute;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.tl-month {
+  top: 6px;
+  padding-left: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.tl-week {
+  bottom: 6px;
+  padding-left: 4px;
+  font-size: 0.75rem;
+}
+
+.tl-row {
+  border-bottom: 1px solid var(--hair);
+}
+
+.tl-row:last-of-type {
+  border-bottom: 0;
+}
+
+.tl-track {
+  position: relative;
+  flex: 0 0 auto;
+  background-image: linear-gradient(to right, var(--hair) 1px, transparent 1px);
+  background-repeat: repeat-x;
+}
+
+.tl-bar {
+  position: absolute;
+  top: 16px;
+  height: 24px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--accent-tint);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.tl-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+.tl-done { background: var(--ok-tint); box-shadow: inset 0 0 0 1.5px #248a3d; }
+.tl-done .tl-fill { background: #248a3d; }
+.tl-problem { background: var(--warn-tint); box-shadow: inset 0 0 0 1.5px #c25e00; }
+.tl-problem .tl-fill { background: #c25e00; }
+.tl-late { background: var(--danger-tint); box-shadow: inset 0 0 0 1.5px #d12f26; }
+.tl-late .tl-fill { background: #d12f26; }
+
+/* No delivery date: the right end fades out instead of stopping at a day. */
+.tl-open {
+  border-radius: 8px 0 0 8px;
+  -webkit-mask-image: linear-gradient(to right, #000 60%, transparent);
+  mask-image: linear-gradient(to right, #000 60%, transparent);
+}
+
+.tl-mark {
+  position: absolute;
+  top: 44px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--surface);
+}
+
+.tl-today {
+  position: absolute;
+  top: 28px;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid var(--ink);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.tl-today span {
+  position: absolute;
+  top: -2px;
+  left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
 }
 
 /* Firmalar */
@@ -1044,6 +1241,21 @@ select.input {
 
 .name-row > .btn:last-child:not(.btn-icon) {
   margin-right: 0.5rem;
+}
+
+.mini-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fact .switch {
+  flex: 0 0 auto;
 }
 
 /* Türler */
@@ -1390,6 +1602,14 @@ select.input {
   .company-count { grid-area: count; }
   .company .go { grid-area: go; }
 
+  .tl {
+    --tl-label: 128px;
+  }
+
+  .view-bar .segmented {
+    flex: 1 1 100%;
+  }
+
   .head-actions {
     width: 100%;
   }
@@ -1404,6 +1624,10 @@ select.input {
 
   .tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tiles .tile:first-child {
+    grid-column: 1 / -1;
   }
 
   .scrim {

@@ -1,11 +1,13 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Timeline } from '../components/Timeline'
 import { Dialog, ErrorNote, Field, Icon, Spinner } from '../components/ui'
 import { useProfile } from '../lib/auth'
 import { friendly } from '../lib/errors'
 import { canManage, supabase } from '../lib/supabase'
 import {
   formatDay,
+  formatMoment,
   isFinished,
   isLate,
   shownStatus,
@@ -33,11 +35,23 @@ export function progressText(steps: Step[]): string {
   return `${steps.filter((s) => s.status === 'done').length} / ${steps.length} adım bitti`
 }
 
+type Layout = 'list' | 'timeline'
+const LAYOUT_KEY = 'felix.projeler.gorunum'
+
+function readLayout(): Layout {
+  try {
+    return localStorage.getItem(LAYOUT_KEY) === 'timeline' ? 'timeline' : 'list'
+  } catch {
+    return 'list'
+  }
+}
+
 export function Projeler() {
   const me = useProfile()
   const manages = canManage(me.panel)
   const { data, error, change } = useWorkshop()
   const [showFinished, setShowFinished] = useState(false)
+  const [layout, setLayout] = useState<Layout>(readLayout)
   const [creating, setCreating] = useState(false)
   const [busyStep, setBusyStep] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -58,6 +72,9 @@ export function Projeler() {
       nActiveSteps: open.filter((s) => s.status === 'active').length,
       nLate: open.filter(isLate).length,
       problems: open.filter((s) => s.status === 'problem'),
+      reviews: open
+        .filter((s) => s.status === 'review')
+        .sort((a, b) => (a.submitted_at ?? '').localeCompare(b.submitted_at ?? '')),
     }
   }, [data])
 
@@ -72,10 +89,19 @@ export function Projeler() {
     )
   }
 
-  async function resolve(step: Step) {
+  async function act(step: Step, action: 'start' | 'approve') {
     setBusyStep(step.id)
-    setActionError(await change(() => stepAction(step.id, 'start')))
+    setActionError(await change(() => stepAction(step.id, action)))
     setBusyStep(null)
+  }
+
+  function pickLayout(next: Layout) {
+    setLayout(next)
+    try {
+      localStorage.setItem(LAYOUT_KEY, next)
+    } catch {
+      // Not being able to remember the choice is harmless.
+    }
   }
 
   const list = showFinished ? view.finished : view.active
@@ -98,6 +124,7 @@ export function Projeler() {
         <div className="tiles">
           <Tile label="Aktif proje" value={view.active.length} />
           <Tile label="Devam eden iş" value={view.nActiveSteps} tone="active" />
+          <Tile label="Onay bekleyen" value={view.reviews.length} tone="review" />
           <Tile label="Geciken iş" value={view.nLate} tone="late" />
           <Tile label="Açık sorun" value={view.problems.length} tone="problem" />
         </div>
@@ -123,7 +150,7 @@ export function Projeler() {
                     <span className="sub">{[project?.code, project?.name, s.name, who].filter(Boolean).join(' · ')}</span>
                   </Link>
                   {manages ? (
-                    <button type="button" className="btn btn-tint press" disabled={busyStep === s.id} onClick={() => void resolve(s)}>
+                    <button type="button" className="btn btn-tint press" disabled={busyStep === s.id} onClick={() => void act(s, 'start')}>
                       Çözüldü
                     </button>
                   ) : null}
@@ -134,13 +161,56 @@ export function Projeler() {
         </section>
       ) : null}
 
-      <div className="segmented narrow" role="group" aria-label="Proje durumu">
-        <button type="button" className="press" aria-pressed={!showFinished} onClick={() => setShowFinished(false)}>
-          Aktif ({view.active.length})
-        </button>
-        <button type="button" className="press" aria-pressed={showFinished} onClick={() => setShowFinished(true)}>
-          Biten ({view.finished.length})
-        </button>
+      {manages && view.reviews.length > 0 ? (
+        <section className="stack" aria-label="Onay bekleyen işler">
+          <h3>Onay bekleyen işler</h3>
+          <div className="card rows problems">
+            {view.reviews.map((s) => {
+              const project = data.project(s.project_id)
+              const who = data.assigneesOf(s.id).map((p) => p.full_name).join(', ')
+              return (
+                <div key={s.id} className="problem">
+                  <span className="problem-icon review-icon">
+                    <Icon name="check" size={20} />
+                  </span>
+                  <Link to={`/projeler/${s.project_id}`} className="problem-text">
+                    <strong>{s.name}</strong>
+                    <span className="sub">
+                      {[project?.code, project?.name, who, s.submitted_at ? `Teslim: ${formatMoment(s.submitted_at)}` : null]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  </Link>
+                  <Link to={`/projeler/${s.project_id}`} className="btn btn-quiet press">
+                    İncele
+                  </Link>
+                  <button type="button" className="btn btn-go press" disabled={busyStep === s.id} onClick={() => void act(s, 'approve')}>
+                    Onayla
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      <div className="view-bar">
+        <div className="segmented narrow" role="group" aria-label="Proje durumu">
+          <button type="button" className="press" aria-pressed={!showFinished} onClick={() => setShowFinished(false)}>
+            Aktif ({view.active.length})
+          </button>
+          <button type="button" className="press" aria-pressed={showFinished} onClick={() => setShowFinished(true)}>
+            Biten ({view.finished.length})
+          </button>
+        </div>
+        <div className="segmented narrow" role="group" aria-label="Görünüm">
+          <button type="button" className="press" aria-pressed={layout === 'list'} onClick={() => pickLayout('list')}>
+            Liste
+          </button>
+          <button type="button" className="press" aria-pressed={layout === 'timeline'} onClick={() => pickLayout('timeline')}>
+            Takvim
+          </button>
+        </div>
       </div>
 
       {list.length === 0 ? (
@@ -151,6 +221,8 @@ export function Projeler() {
               ? 'Aktif proje yok. "Yeni proje" ile başlayın.'
               : 'Şu anda aktif proje yok.'}
         </div>
+      ) : layout === 'timeline' ? (
+        <Timeline projects={list} data={data} />
       ) : (
         <div className="project-grid">
           {list.map((p) => (
@@ -164,7 +236,7 @@ export function Projeler() {
   )
 }
 
-function Tile({ label, value, tone }: { label: string; value: number; tone?: 'active' | 'late' | 'problem' }) {
+function Tile({ label, value, tone }: { label: string; value: number; tone?: 'active' | 'late' | 'problem' | 'review' }) {
   return (
     <div className="card tile">
       <div className="tile-label">{label}</div>

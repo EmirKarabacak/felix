@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { ErrorNote, Icon } from './ui'
 
 type Item = { id: string; name: string }
@@ -12,6 +12,7 @@ export function EditableList({
   noun,
   placeholder,
   note,
+  extra,
   deleteWarning,
   onCreate,
   onRename,
@@ -23,6 +24,8 @@ export function EditableList({
   placeholder: string
   /** Small text on the right of a row, e.g. how many people have it. */
   note?: (item: Item) => string
+  /** An extra control on each row, such as a switch. */
+  extra?: (item: Item) => ReactNode
   /** Shown before deleting, when deleting has a consequence worth stating. */
   deleteWarning?: (item: Item) => string | null
   onCreate: (name: string) => Promise<string | null>
@@ -106,6 +109,7 @@ export function EditableList({
                 {item.name}
               </button>
               <span className="count">{note?.(item) ?? ''}</span>
+              {extra?.(item)}
               <button
                 type="button"
                 className="btn btn-icon press"
