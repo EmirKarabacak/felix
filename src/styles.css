@@ -200,6 +200,7 @@ button:disabled {
 }
 
 .input {
+  scroll-margin: 5rem 0;
   width: 100%;
   min-height: 48px;
   padding: 0 0.875rem;
@@ -541,8 +542,13 @@ select.input {
 
 /* Dialog: centered panel on wide screens, bottom sheet on phones */
 .scrim {
+  /* Sized to the part of the screen that is actually visible, so an open
+     keyboard pushes the sheet up instead of covering it (see lib/viewport.ts). */
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: var(--vvtop, 0px);
+  height: var(--vvh, 100dvh);
   z-index: 20;
   background: rgba(0, 0, 0, 0.4);
   display: flex;
@@ -723,6 +729,22 @@ select.input {
     color: var(--accent);
   }
 
+  /* While someone is typing, the tab bar would sit on top of the keyboard and
+     cover the field; it comes back when the keyboard closes. */
+  html.typing .tabbar {
+    display: none;
+  }
+
+  /* Leave room to scroll the last field clear of the keyboard. */
+  html.typing .page {
+    padding-bottom: calc(100dvh - var(--vvh, 100dvh) + 6rem);
+  }
+
+  .gate {
+    align-items: flex-start;
+    padding-top: max(2rem, 9vh);
+  }
+
   .page {
     padding-top: 1.25rem;
     padding-bottom: calc(var(--tab-h) + 2.5rem + env(safe-area-inset-bottom));
@@ -759,7 +781,8 @@ select.input {
 
   .dialog {
     max-width: none;
-    max-height: 92dvh;
+    max-height: calc(100% - 0.75rem);
+    overscroll-behavior: contain;
     border-radius: var(--r) var(--r) 0 0;
     padding-bottom: max(var(--pad), env(safe-area-inset-bottom));
     animation: sheet 380ms cubic-bezier(0.2, 0.9, 0.25, 1);
