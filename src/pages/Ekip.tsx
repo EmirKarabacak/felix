@@ -4,6 +4,7 @@ import { callApi } from '../lib/api'
 import { useAuth, useProfile } from '../lib/auth'
 import { friendly } from '../lib/errors'
 import { PANEL_LABEL, supabase, type Meslek, type Panel, type Profile } from '../lib/supabase'
+import { useWorkshop } from '../lib/workshop'
 import { MIN_PASSWORD_LENGTH, isValidUsername, normalizeUsername } from '../../shared/username'
 
 const PANEL_OPTIONS: { value: Panel; label: string }[] = [
@@ -18,6 +19,7 @@ export function Ekip() {
   const me = useProfile()
   const { reloadProfile } = useAuth()
   const isCeo = me.panel === 'ceo'
+  const reloadWorkshop = useWorkshop().reload
 
   const [people, setPeople] = useState<Profile[] | null>(null)
   const [meslekler, setMeslekler] = useState<Meslek[]>([])
@@ -40,8 +42,10 @@ export function Ekip() {
     }
     setError(null)
     setPeople(p.data as Profile[])
-    setMeslekler(m.data as Meslek[])
-  }, [])
+    setMeslekler((m.data as Meslek[]).sort((a, b) => a.name.localeCompare(b.name, 'tr')))
+    // Projects show people and meslek names too; keep them in step.
+    void reloadWorkshop()
+  }, [reloadWorkshop])
 
   useEffect(() => {
     void load()

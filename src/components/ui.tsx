@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { Component, useEffect, useId, useRef, type ReactNode } from 'react'
 
 const PATHS = {
   drop: <path d="M12 3c3.5 4.2 6 7.3 6 10.5a6 6 0 0 1-12 0C6 10.3 8.5 7.2 12 3z" />,
@@ -32,6 +32,29 @@ const PATHS = {
     </>
   ),
   folder: <path d="M3.500 7.500v10a1.500 1.500 0 0 0 1.500 1.500h14a1.500 1.500 0 0 0 1.500-1.500V9a1.500 1.500 0 0 0-1.500-1.500h-6.500l-2-2.500H5A1.500 1.500 0 0 0 3.500 6.500z" />,
+  layers: (
+    <>
+      <path d="M12 4l8 4-8 4-8-4 8-4z" />
+      <path d="M4 12l8 4 8-4" />
+      <path d="M4 16l8 4 8-4" />
+    </>
+  ),
+  back: <path d="M15 5l-7 7 7 7" />,
+  alert: (
+    <>
+      <path d="M12 4 2.5 20h19L12 4z" />
+      <path d="M12 10v4" />
+      <path d="M12 17v.5" />
+    </>
+  ),
+  up: <path d="M6 14l6-6 6 6" />,
+  down: <path d="M6 10l6 6 6-6" />,
+  minus: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12h8" />
+    </>
+  ),
   list: (
     <>
       <path d="M9 7h11" />
@@ -143,19 +166,22 @@ export function Dialog({
   onClose,
   children,
   footer,
+  focusFirst = true,
 }: {
   title: string
   subtitle?: string
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
+  /** Put the cursor in the first field on open. Turn off for sheets that are mostly buttons. */
+  focusFirst?: boolean
 }) {
   const panel = useRef<HTMLDivElement>(null)
   const titleId = useId()
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
-    const first = panel.current?.querySelector<HTMLElement>('input, select, textarea')
+    const first = focusFirst ? panel.current?.querySelector<HTMLElement>('input, select, textarea') : null
     ;(first ?? panel.current)?.focus()
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -192,4 +218,33 @@ export function Dialog({
       </div>
     </div>
   )
+}
+
+/** If a screen crashes, say so and offer a way back, instead of a blank page. */
+export class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error('Felix screen error:', error)
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children
+    return (
+      <div className="gate">
+        <div className="gate-inner">
+          <div className="note note-error" role="alert">
+            Bu ekran açılırken bir hata oluştu. Verileriniz güvende; sayfayı yenileyip tekrar deneyin.
+          </div>
+          <button type="button" className="btn btn-primary btn-big press" onClick={() => window.location.assign('/')}>
+            Yenile
+          </button>
+        </div>
+      </div>
+    )
+  }
 }

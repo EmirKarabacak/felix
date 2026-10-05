@@ -13,6 +13,7 @@ import pg from 'pg'
 const PORT = Number(process.env.STACK_PORT ?? 54321)
 const SECRET = 'local-test-secret'
 const pool = new pg.Pool({ connectionString: process.env.PGURL })
+pg.types.setTypeParser(1082, (v) => v) // dates as plain 'YYYY-MM-DD' text, as Supabase returns them
 pool.on('error', () => {}) // the database may be restarted between test runs
 
 const b64 = (v: string | Buffer) => Buffer.from(v).toString('base64url')
@@ -201,7 +202,12 @@ async function rest(req: IncomingMessage, res: ServerResponse, path: string, que
   try {
     const rpc = path.match(/^\/rpc\/([a-z_]+)$/)
     if (rpc) {
-      const { rows } = await asCaller(claims, (c) => c.query(`select public.${ident(rpc[1])}() as result`))
+      const args = req.method === 'POST' ? await readBody(req) : {}
+      const names = Object.keys(args)
+      const call = names.map((n, i) => `${ident(n)} => $${i + 1}`).join(', ')
+      const { rows } = await asCaller(claims, (c) =>
+        c.query(`select public.${ident(rpc[1])}(${call}) as result`, names.map((n) => args[n])),
+      )
       return send(res, 200, rows[0].result)
     }
     const table = `public.${ident(path.slice(1))}`
@@ -221,15 +227,20 @@ async function rest(req: IncomingMessage, res: ServerResponse, path: string, que
       const { rows } = await asCaller(claims, (c) => c.query(sql, params))
       const range = { 'Content-Range': rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' }
       if (req.method === 'HEAD') return send(res, 200, undefined, range)
+      if (String(req.headers.accept ?? '').includes('vnd.pgrst.object')) {
+        if (rows.length !== 1) return send(res, 406, { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' })
+        return send(res, 200, rows[0], range)
+      }
       return send(res, 200, rows, range)
     }
 
     const body = await readBody(req)
     let sql = ''
     if (req.method === 'POST') {
-      const keys = Object.keys(body)
-      keys.forEach((k) => params.push(body[k]))
-      sql = `insert into ${table} (${keys.map(ident).join(', ')}) values (${keys.map((_, i) => `$${i + 1}`).join(', ')})`
+      const list: Json[] = Array.isArray(body) ? body : [body]
+      const keys = Object.keys(list[0] ?? {})
+      const tuples = list.map((row) => `(${keys.map((k) => { params.push(row[k]); return `$${params.length}` }).join(', ')})`)
+      sql = `insert into ${table} (${keys.map(ident).join(', ')}) values ${tuples.join(', ')}`
     } else if (req.method === 'PATCH') {
       const keys = Object.keys(body)
       keys.forEach((k) => params.push(body[k]))
@@ -241,7 +252,8 @@ async function rest(req: IncomingMessage, res: ServerResponse, path: string, que
     }
     const wantRows = prefer.includes('return=representation')
     const { rows } = await asCaller(claims, (c) => c.query(sql + (wantRows ? ' returning *' : ''), params))
-    return send(res, req.method === 'POST' ? 201 : wantRows ? 200 : 204, wantRows ? rows : undefined)
+    const one = String(req.headers.accept ?? '').includes('vnd.pgrst.object')
+    return send(res, req.method === 'POST' ? 201 : wantRows ? 200 : 204, wantRows ? (one ? rows[0] : rows) : undefined)
   } catch (e: any) {
     const status = e.code === '42501' ? 403 : e.code === '23505' ? 409 : 400
     send(res, status, { code: e.code ?? 'XX000', message: e.message, details: e.detail ?? null, hint: null })

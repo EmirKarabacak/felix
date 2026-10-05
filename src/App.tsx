@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { Spinner } from './components/ui'
+import { ErrorBoundary, Spinner } from './components/ui'
 import { Shell } from './components/Shell'
 import { useAuth } from './lib/auth'
 import { canManage, isConfigured, supabase } from './lib/supabase'
 import { Ekip } from './pages/Ekip'
 import { Login } from './pages/Login'
-import { ComingSoon } from './pages/ComingSoon'
+import { Islerim } from './pages/Islerim'
+import { ProjeDetay } from './pages/ProjeDetay'
+import { Projeler } from './pages/Projeler'
+import { Turler } from './pages/Turler'
+import { WorkshopProvider } from './lib/workshop'
 import { Setup } from './pages/Setup'
 
 export function App() {
@@ -37,23 +41,28 @@ export function App() {
 
   const manages = canManage(state.profile.panel)
   return (
-    <Shell>
-      <Routes>
-        {manages ? (
-          <>
-            <Route path="/projeler" element={<ComingSoon title="Projeler" />} />
-            <Route path="/ekip" element={<Ekip />} />
-            <Route path="*" element={<Navigate to="/ekip" replace />} />
-          </>
-        ) : (
-          <>
-            <Route path="/islerim" element={<ComingSoon title="İşlerim" />} />
-            <Route path="/projeler" element={<ComingSoon title="Projeler" />} />
-            <Route path="*" element={<Navigate to="/islerim" replace />} />
-          </>
-        )}
-      </Routes>
-    </Shell>
+    <WorkshopProvider>
+      <Shell>
+        <ErrorBoundary>
+        <Routes>
+          <Route path="/projeler" element={<Projeler />} />
+          <Route path="/projeler/:id" element={<ProjeDetay />} />
+          {manages ? (
+            <>
+              <Route path="/turler" element={<Turler />} />
+              <Route path="/ekip" element={<Ekip />} />
+              <Route path="*" element={<Navigate to="/projeler" replace />} />
+            </>
+          ) : (
+            <>
+              <Route path="/islerim" element={<Islerim />} />
+              <Route path="*" element={<Navigate to="/islerim" replace />} />
+            </>
+          )}
+        </Routes>
+        </ErrorBoundary>
+      </Shell>
+    </WorkshopProvider>
   )
 }
 

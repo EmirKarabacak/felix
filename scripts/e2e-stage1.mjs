@@ -38,6 +38,12 @@ async function signOut(p) {
   await p.getByRole('button', { name: 'Çıkış yap' }).click()
   await p.getByRole('button', { name: 'Giriş yap' }).waitFor()
 }
+/** Signed-in managers land on Projeler; these checks are about the Ekip page. */
+async function toEkip(p) {
+  await p.locator('.topbar').waitFor()
+  if (!p.url().endsWith('/ekip')) await p.locator('.topnav a, .tabbar a').filter({ hasText: 'Ekip' }).locator('visible=true').first().click()
+  await p.getByRole('heading', { name: 'Ekip' }).waitFor()
+}
 const row = (p, name) => p.locator('button.person', { hasText: name })
 
 // 1. first-time setup
@@ -53,8 +59,9 @@ await page.getByText('Kurulum kodu hatalı.').waitFor()
 ok('setup refuses a wrong setup code')
 await page.getByLabel('Kurulum kodu').fill('kurulum')
 await page.getByRole('button', { name: 'CEO hesabını oluştur' }).click()
-await page.getByRole('heading', { name: 'Ekip' }).waitFor()
-expect(await row(page, 'Emir Karabacak').locator('.badge-ceo').count() === 1, 'setup creates the CEO and signs them in')
+await toEkip(page)
+await row(page, 'Emir Karabacak').locator('.badge-ceo').waitFor()
+ok('setup creates the CEO and signs them in')
 
 // 2. add people
 async function addPerson(name, password, panel, meslek) {
@@ -156,7 +163,7 @@ expect(workerApi === '403,403,403,401', `server refuses a worker (and a signed-o
 
 // 7. manager: can see and edit, cannot add or remove people
 await signIn(page, 'selim.ates', 'selim123')
-await page.getByRole('heading', { name: 'Ekip' }).waitFor()
+await toEkip(page)
 expect(await page.getByRole('button', { name: 'Kişi ekle' }).count() === 0, 'manager has no "Kişi ekle" button')
 await row(page, 'Ahmet Yılmaz').click()
 expect(await page.getByRole('group', { name: 'Panel' }).count() === 0 && await page.getByRole('button', { name: 'Kişiyi sil' }).count() === 0, 'manager sees no panel control and no delete')
@@ -199,23 +206,23 @@ await page.getByText('Şifreniz değiştirildi.').waitFor()
 await page.screenshot({ path: `${SHOTS}/08-account.png` })
 await page.getByRole('button', { name: 'Çıkış yap' }).click()
 await signIn(page, 'emir', 'emir5678')
-await page.getByRole('heading', { name: 'Ekip' }).waitFor()
+await toEkip(page)
 ok('a person can change their own password')
 
 // 9b. "Beni hatırla": on keeps the sign-in for a new tab, off does not
 {
   const tab = await desktop.newPage()
   await tab.goto(BASE)
-  await tab.getByRole('heading', { name: 'Ekip' }).waitFor()
+  await toEkip(tab)
   ok('with "Beni hatırla" on, a new tab is already signed in')
   await tab.close()
   await signOut(page)
   expect(await page.getByRole('switch', { name: /Beni hatırla/ }).isChecked(), '"Beni hatırla" is on by default')
   await page.getByRole('switch', { name: /Beni hatırla/ }).uncheck()
   await signIn(page, 'emir', 'emir5678')
-  await page.getByRole('heading', { name: 'Ekip' }).waitFor()
+  await toEkip(page)
   await page.reload()
-  await page.getByRole('heading', { name: 'Ekip' }).waitFor()
+  await toEkip(page)
   ok('with it off, reloading the same tab stays signed in')
   const kept = await page.evaluate(() => Object.keys(localStorage).some((k) => k.endsWith('-auth-token')))
   const tab2 = await desktop.newPage()
@@ -226,12 +233,12 @@ ok('a person can change their own password')
   await signOut(page)
   await page.getByRole('switch', { name: /Beni hatırla/ }).check()
   await signIn(page, 'emir', 'emir5678')
-  await page.getByRole('heading', { name: 'Ekip' }).waitFor()
+  await toEkip(page)
 }
 
 // 10. the team page on a phone
 await signIn(mobile, 'emir', 'emir5678')
-await mobile.getByRole('heading', { name: 'Ekip' }).waitFor()
+await toEkip(mobile)
 await row(mobile, 'Selim Ateş').waitFor()
 await mobile.screenshot({ path: `${SHOTS}/09-ekip-phone.png`, fullPage: true })
 await row(mobile, 'Selim Ateş').click()
