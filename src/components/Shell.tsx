@@ -51,8 +51,12 @@ export function Shell({ children }: { children: ReactNode }) {
       <nav className="tabbar glass" aria-label="Bölümler">
         {tabs.map((t) => (
           <NavLink key={t.to} to={t.to} className="press">
-            <Icon name={t.icon} size={24} />
-            {t.label}
+            {({ isActive }) => (
+              <>
+                <Icon name={t.icon} size={25} filled={isActive} />
+                {t.label}
+              </>
+            )}
           </NavLink>
         ))}
       </nav>

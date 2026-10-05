@@ -1089,7 +1089,7 @@ select.input {
 }
 
 .type-step .no {
-  width: 1.5rem;
+  flex: 0 0 1.5rem;
 }
 
 .pad {

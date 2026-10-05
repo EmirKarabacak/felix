@@ -1,83 +1,157 @@
 import { Component, useEffect, useId, useRef, type ReactNode } from 'react'
 
-const PATHS = {
-  drop: <path d="M12 3c3.5 4.2 6 7.3 6 10.5a6 6 0 0 1-12 0C6 10.3 8.5 7.2 12 3z" />,
-  plus: (
-    <>
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </>
-  ),
-  trash: (
-    <>
-      <path d="M5 7h14" />
-      <path d="M10 7V4h4v3" />
-      <path d="M7 7l1 13h8l1-13" />
-    </>
-  ),
-  chevron: <path d="M9 5l7 7-7 7" />,
-  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
-  person: (
-    <>
-      <circle cx="12" cy="8" r="3.5" />
-      <path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.200 1.900 7 5.5" />
-    </>
-  ),
-  people: (
-    <>
-      <circle cx="9" cy="8.500" r="3" />
-      <path d="M3 19.500c.6-3 2.900-4.700 6-4.700s5.400 1.700 6 4.700" />
-      <path d="M15.500 5.800a3 3 0 0 1 0 5.400" />
-      <path d="M17.500 14.900c1.900.5 3.100 2 3.500 4.600" />
-    </>
-  ),
-  folder: <path d="M3.500 7.500v10a1.500 1.500 0 0 0 1.500 1.500h14a1.500 1.500 0 0 0 1.500-1.500V9a1.500 1.500 0 0 0-1.500-1.500h-6.500l-2-2.500H5A1.500 1.500 0 0 0 3.500 6.500z" />,
-  building: (
-    <>
-      <path d="M5 20V6l7-2.500V20" />
-      <path d="M12 9l7 2v9" />
-      <path d="M3 20h18" />
-      <path d="M8 9v.01M8 12.500v.01M8 16v.01M15.500 13.500v.01M15.500 16.500v.01" />
-    </>
-  ),
-  layers: (
-    <>
-      <path d="M12 4l8 4-8 4-8-4 8-4z" />
-      <path d="M4 12l8 4 8-4" />
-      <path d="M4 16l8 4 8-4" />
-    </>
-  ),
-  back: <path d="M15 5l-7 7 7 7" />,
-  alert: (
-    <>
-      <path d="M12 4 2.5 20h19L12 4z" />
-      <path d="M12 10v4" />
-      <path d="M12 17v.5" />
-    </>
-  ),
-  up: <path d="M6 14l6-6 6 6" />,
-  down: <path d="M6 10l6 6 6-6" />,
-  minus: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M8 12h8" />
-    </>
-  ),
-  list: (
-    <>
-      <path d="M9 7h11" />
-      <path d="M9 12h11" />
-      <path d="M9 17h11" />
-      <path d="M4.500 7h.01" />
-      <path d="M4.500 12h.01" />
-      <path d="M4.500 17h.01" />
-    </>
-  ),
-}
+// Felix's icons are drawn here, in one family: a 24-unit grid, rounded line
+// ends, one line weight, and corners rounded to match. Icons that mark a place
+// in the app (the tab bar) also have a filled form, shown when that tab is
+// the current one, so selection is carried by shape as well as colour.
+type Glyph = { outline: ReactNode; filled?: ReactNode }
 
-export type IconName = keyof typeof PATHS
+const F = { fill: 'currentColor' } as const
 
-export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
+const GLYPHS = {
+  drop: {
+    outline: <path d="M12 3.2c3.4 4.1 5.8 7.2 5.8 10.4a5.8 5.8 0 0 1-11.6 0c0-3.2 2.4-6.300 5.8-10.4z" />,
+  },
+  plus: { outline: <path d="M12 5.500v13M5.500 12h13" /> },
+  check: { outline: <path d="M5.200 12.600l4.300 4.300 9.300-9.500" /> },
+  chevron: { outline: <path d="M9.200 5.500l6.300 6.500-6.300 6.500" /> },
+  back: { outline: <path d="M14.800 5.500L8.500 12l6.300 6.500" /> },
+  up: { outline: <path d="M6 14.500l6-6 6 6" /> },
+  down: { outline: <path d="M6 9.500l6 6 6-6" /> },
+  minus: {
+    outline: (
+      <>
+        <circle cx="12" cy="12" r="8.700" />
+        <path d="M8.300 12h7.400" />
+      </>
+    ),
+  },
+  trash: {
+    outline: (
+      <>
+        <path d="M4.500 7h15" />
+        <path d="M9.500 7V5.300A1.300 1.300 0 0 1 10.800 4h2.400a1.300 1.300 0 0 1 1.300 1.300V7" />
+        <path d="M6.400 7l.8 11.200A1.900 1.900 0 0 0 9.100 20h5.800a1.900 1.900 0 0 0 1.900-1.800L17.600 7" />
+        <path d="M10.200 11v5M13.800 11v5" />
+      </>
+    ),
+  },
+  alert: {
+    outline: (
+      <>
+        <path d="M10.300 4.900L2.900 17.600a1.950 1.950 0 0 0 1.700 2.900h14.800a1.950 1.950 0 0 0 1.700-2.900L13.700 4.900a1.950 1.950 0 0 0-3.400 0z" />
+        <path d="M12 9.500v4.300" />
+        <circle cx="12" cy="16.900" r="0.900" {...F} stroke="none" />
+      </>
+    ),
+  },
+  person: {
+    outline: (
+      <>
+        <circle cx="12" cy="8" r="3.600" />
+        <path d="M4.800 20a7.200 7.200 0 0 1 14.400 0" />
+      </>
+    ),
+    filled: (
+      <>
+        <circle cx="12" cy="8" r="3.600" {...F} />
+        <path d="M4.800 20a7.200 7.200 0 0 1 14.400 0z" {...F} />
+      </>
+    ),
+  },
+  people: {
+    outline: (
+      <>
+        <circle cx="9.300" cy="8.500" r="3.100" />
+        <path d="M3.200 19.500a6.100 6.100 0 0 1 12.200 0" />
+        <path d="M15.900 5.600a3.100 3.100 0 0 1 0 5.800" />
+        <path d="M17.700 14.300a6 6 0 0 1 3.100 5.200" />
+      </>
+    ),
+    filled: (
+      <>
+        <circle cx="9.300" cy="8.500" r="3.100" {...F} />
+        <path d="M3.200 19.500a6.100 6.100 0 0 1 12.200 0z" {...F} />
+        <path d="M15.900 5.600a3.100 3.100 0 0 1 0 5.800" />
+        <path d="M17.700 14.300a6 6 0 0 1 3.100 5.200" />
+      </>
+    ),
+  },
+  folder: {
+    outline: (
+      <path d="M3.500 7v10a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2V9.700a2 2 0 0 0-2-2h-6.200L10.700 5.600A2 2 0 0 0 9.300 5H5.500a2 2 0 0 0-2 2z" />
+    ),
+    filled: (
+      <path
+        d="M3.500 7v10a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2V9.700a2 2 0 0 0-2-2h-6.200L10.700 5.600A2 2 0 0 0 9.300 5H5.500a2 2 0 0 0-2 2z"
+        {...F}
+      />
+    ),
+  },
+  building: {
+    outline: (
+      <>
+        <path d="M5 20V5.500A1.500 1.500 0 0 1 6.500 4h6A1.500 1.500 0 0 1 14 5.500V20" />
+        <path d="M14 10h3.500a1.500 1.500 0 0 1 1.500 1.500V20" />
+        <path d="M3 20h18" />
+        <path d="M8.300 8h2.400M8.300 11.500h2.400M8.300 15h2.400" />
+      </>
+    ),
+    filled: (
+      <>
+        {/* The windows are holes in the fill; no stroke here, or it would close them up. */}
+        <path
+          d="M5 20V5.500A1.500 1.500 0 0 1 6.500 4h6A1.500 1.500 0 0 1 14 5.500V20zM7.700 7h3.600v2H7.700zM7.700 10.500h3.600v2H7.700zM7.700 14h3.600v2H7.700z"
+          {...F}
+          fillRule="evenodd"
+          stroke="none"
+        />
+        <path d="M5 20V5.500A1.500 1.500 0 0 1 6.500 4h6A1.500 1.500 0 0 1 14 5.500V20" />
+        <path d="M14 10h3.500a1.500 1.500 0 0 1 1.500 1.500V20h-5z" {...F} />
+        <path d="M3 20h18" />
+      </>
+    ),
+  },
+  layers: {
+    outline: (
+      <>
+        <path d="M12 4.200l8.300 4.100-8.300 4.100-8.300-4.100z" />
+        <path d="M4.200 12.200L12 16l7.800-3.800" />
+        <path d="M4.200 15.900L12 19.700l7.800-3.800" />
+      </>
+    ),
+    filled: (
+      <>
+        <path d="M12 4.200l8.300 4.100-8.300 4.100-8.300-4.100z" {...F} />
+        <path d="M4.200 12.200L12 16l7.800-3.800" />
+        <path d="M4.200 15.900L12 19.700l7.800-3.800" />
+      </>
+    ),
+  },
+  list: {
+    outline: (
+      <>
+        <path d="M9.500 7h10M9.500 12h10M9.500 17h10" />
+        <circle cx="5" cy="7" r="1.100" {...F} stroke="none" />
+        <circle cx="5" cy="12" r="1.100" {...F} stroke="none" />
+        <circle cx="5" cy="17" r="1.100" {...F} stroke="none" />
+      </>
+    ),
+    filled: (
+      <>
+        <path d="M9.500 7h10M9.500 12h10M9.500 17h10" strokeWidth="2.600" />
+        <circle cx="5" cy="7" r="1.600" {...F} stroke="none" />
+        <circle cx="5" cy="12" r="1.600" {...F} stroke="none" />
+        <circle cx="5" cy="17" r="1.600" {...F} stroke="none" />
+      </>
+    ),
+  },
+} satisfies Record<string, Glyph>
+
+export type IconName = keyof typeof GLYPHS
+
+export function Icon({ name, size = 22, filled = false }: { name: IconName; size?: number; filled?: boolean }) {
+  const glyph: Glyph = GLYPHS[name]
   return (
     <svg
       width={size}
@@ -85,12 +159,12 @@ export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="1.900"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      {PATHS[name]}
+      {filled && glyph.filled ? glyph.filled : glyph.outline}
     </svg>
   )
 }
