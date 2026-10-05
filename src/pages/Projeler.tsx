@@ -175,6 +175,7 @@ function Tile({ label, value, tone }: { label: string; value: number; tone?: 'ac
 
 function ProjectCard({ project, data }: { project: Project; data: Workshop }) {
   const steps = data.stepsOf(project.id)
+  const company = data.company(project.company_id)
   const late = steps.some(isLate)
   const problems = steps.filter((s) => s.status === 'problem').length
   return (
@@ -184,6 +185,7 @@ function ProjectCard({ project, data }: { project: Project; data: Workshop }) {
         <span className="sub">{project.due_date ? `Teslim: ${formatDay(project.due_date)}` : 'Teslim tarihi yok'}</span>
       </span>
       <span className="project-name">{project.name}</span>
+      {company ? <span className="sub">{company.name}</span> : null}
       <ProgressStrip steps={steps} />
       <span className="project-meta">
         <span className="sub">{progressText(steps)}</span>
@@ -196,6 +198,8 @@ function ProjectCard({ project, data }: { project: Project; data: Workshop }) {
   )
 }
 
+const NEW_COMPANY = '__new__'
+
 function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => void }) {
   const navigate = useNavigate()
   const { reload } = useWorkshop()
@@ -203,6 +207,8 @@ function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => vo
   const [code, setCode] = useState('')
   const [due, setDue] = useState('')
   const [typeId, setTypeId] = useState('')
+  const [companyId, setCompanyId] = useState('')
+  const [newCompany, setNewCompany] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -213,11 +219,25 @@ function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => vo
     if (busy) return
     setBusy(true)
     setError(null)
+    let company: string | null = companyId || null
+    if (companyId === NEW_COMPANY) {
+      // A firm typed here is added to Firmalar by name; its details can be filled in there later.
+      const made = await supabase.rpc('save_company', { p_name: newCompany })
+      if (made.error) {
+        setError(friendly(made.error))
+        setBusy(false)
+        return
+      }
+      company = made.data as string
+      setCompanyId(company) // if the project itself fails next, do not create the firm twice
+      await reload()
+    }
     const { data: id, error } = await supabase.rpc('create_project', {
       p_name: name,
       p_code: code || null,
       p_due_date: due || null,
       p_type_id: typeId || null,
+      p_company_id: company,
     })
     if (error) {
       setError(friendly(error))
@@ -245,6 +265,34 @@ function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => vo
             />
           )}
         </Field>
+        <Field label="Firma" hint="Siparişi veren firma.">
+          {(id) => (
+            <select id={id} className="input" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+              <option value="">Seçilmedi</option>
+              {data.companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+              <option value={NEW_COMPANY}>+ Yeni firma ekle…</option>
+            </select>
+          )}
+        </Field>
+        {companyId === NEW_COMPANY ? (
+          <Field label="Yeni firma adı" hint="Firma listeye eklenir. İletişim bilgilerini sonra Firmalar sayfasından girebilirsiniz.">
+            {(id) => (
+              <input
+                id={id}
+                className="input"
+                value={newCompany}
+                onChange={(e) => setNewCompany(e.target.value)}
+                maxLength={120}
+                autoComplete="off"
+                required
+              />
+            )}
+          </Field>
+        ) : null}
         <div className="pair">
           <Field label="Proje kodu">
             {(id) => (

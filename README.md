@@ -14,6 +14,9 @@ from a type, steps with several assignees and due dates, the worker's İşlerim
 with start / finish / report a problem, the problems list for managers, and
 every project visible read-only to workers.
 
+**Firmalar (done):** customer companies with contact details (visible to the
+CEO and managers only), chosen when creating a project.
+
 Still to come (stage 3): project chat, notifications, drawings and photos,
 time and history views, workload view.
 

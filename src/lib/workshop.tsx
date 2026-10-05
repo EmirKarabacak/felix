@@ -10,6 +10,7 @@ export type Project = {
   name: string
   due_date: string | null
   project_type_id: string | null
+  company_id: string | null
   created_at: string
 }
 
@@ -27,6 +28,17 @@ export type Step = {
 }
 
 export type NamedItem = { id: string; name: string }
+
+/** A customer company. Everyone sees the name; only the CEO and managers get details. */
+export type Company = NamedItem
+export type CompanyDetails = {
+  company_id: string
+  contact_name: string | null
+  email: string | null
+  phone: string | null
+  address: string | null
+  notes: string | null
+}
 export type ProjectTypeStep = { id: string; project_type_id: string; step_type_id: string; position: number }
 
 type Raw = {
@@ -38,6 +50,9 @@ type Raw = {
   stepTypes: NamedItem[]
   projectTypes: NamedItem[]
   projectTypeSteps: ProjectTypeStep[]
+  companies: Company[]
+  /** Empty for workers: the database does not give them contact details. */
+  companyDetails: CompanyDetails[]
 }
 
 export type Workshop = Raw & {
@@ -47,6 +62,9 @@ export type Workshop = Raw & {
   assigneesOf: (stepId: string) => Profile[]
   person: (id: string) => Profile | undefined
   project: (id: string) => Project | undefined
+  company: (id: string | null) => Company | undefined
+  detailsOf: (companyId: string) => CompanyDetails | undefined
+  projectsOf: (companyId: string) => Project[]
   /** Steps of a project type, in order, with the step type's name. */
   typeStepsOf: (projectTypeId: string) => (ProjectTypeStep & { name: string })[]
 }
@@ -64,8 +82,8 @@ const WorkshopContext = createContext<WorkshopContextValue | null>(null)
 const REFRESH_MS = 30_000
 
 async function load(): Promise<Raw> {
-  const [projects, steps, assignees, people, meslekler, stepTypes, projectTypes, projectTypeSteps] = await Promise.all([
-    supabase.from('projects').select('id, code, name, due_date, project_type_id, created_at').order('created_at'),
+  const [projects, steps, assignees, people, meslekler, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails] = await Promise.all([
+    supabase.from('projects').select('id, code, name, due_date, project_type_id, company_id, created_at').order('created_at'),
     supabase
       .from('project_steps')
       .select('id, project_id, name, position, due_date, status, problem_reason, problem_note, started_at, finished_at')
@@ -76,8 +94,10 @@ async function load(): Promise<Raw> {
     supabase.from('step_types').select('id, name').order('name'),
     supabase.from('project_types').select('id, name').order('name'),
     supabase.from('project_type_steps').select('id, project_type_id, step_type_id, position').order('position'),
+    supabase.from('companies').select('id, name').order('name'),
+    supabase.from('company_details').select('company_id, contact_name, email, phone, address, notes'),
   ])
-  const failed = [projects, steps, assignees, people, meslekler, stepTypes, projectTypes, projectTypeSteps].find((r) => r.error)
+  const failed = [projects, steps, assignees, people, meslekler, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails].find((r) => r.error)
   if (failed?.error) throw failed.error
   return {
     projects: projects.data as Project[],
@@ -88,6 +108,8 @@ async function load(): Promise<Raw> {
     stepTypes: stepTypes.data as NamedItem[],
     projectTypes: projectTypes.data as NamedItem[],
     projectTypeSteps: projectTypeSteps.data as ProjectTypeStep[],
+    companies: companies.data as Company[],
+    companyDetails: companyDetails.data as CompanyDetails[],
   }
 }
 
@@ -101,9 +123,12 @@ function index(input: Raw): Workshop {
     meslekler: [...input.meslekler].sort(byName),
     stepTypes: [...input.stepTypes].sort(byName),
     projectTypes: [...input.projectTypes].sort(byName),
+    companies: [...input.companies].sort(byName),
   }
   const people = new Map(raw.people.map((p) => [p.id, p]))
   const projects = new Map(raw.projects.map((p) => [p.id, p]))
+  const companies = new Map(raw.companies.map((c) => [c.id, c]))
+  const details = new Map(raw.companyDetails.map((d) => [d.company_id, d]))
   const stepTypeName = new Map(raw.stepTypes.map((s) => [s.id, s.name]))
   const steps = new Map<string, Step[]>()
   for (const s of raw.steps) {
@@ -132,6 +157,9 @@ function index(input: Raw): Workshop {
     assigneesOf: (id) => assigned.get(id) ?? [],
     person: (id) => people.get(id),
     project: (id) => projects.get(id),
+    company: (id) => (id ? companies.get(id) : undefined),
+    detailsOf: (id) => details.get(id),
+    projectsOf: (id) => raw.projects.filter((p) => p.company_id === id),
     typeStepsOf: (id) => typeSteps.get(id) ?? [],
   }
 }

@@ -43,6 +43,9 @@ export function ProjeDetay() {
   }
 
   const steps = data.stepsOf(project.id)
+  const company = data.company(project.company_id)
+  const contact = company ? data.detailsOf(company.id) : undefined
+  const hasContact = !!contact && [contact.contact_name, contact.phone, contact.email, contact.address, contact.notes].some(Boolean)
 
   return (
     <div className="page">
@@ -55,6 +58,7 @@ export function ProjeDetay() {
               .join(' · ')}
           </div>
           <h1>{project.name}</h1>
+          {company ? <div className="sub company-line">{company.name}</div> : null}
         </div>
         {manages ? (
           <div className="head-actions">
@@ -75,6 +79,45 @@ export function ProjeDetay() {
         <ProgressStrip steps={steps} />
         <span className="sub">{progressText(steps)}</span>
       </div>
+
+      {manages && company && contact && hasContact ? (
+        <section className="card rows facts customer" aria-label="Müşteri">
+          {contact.contact_name ? (
+            <div className="fact">
+              <span>Yetkili kişi</span>
+              <span className="value">{contact.contact_name}</span>
+            </div>
+          ) : null}
+          {contact.phone ? (
+            <div className="fact">
+              <span>Telefon</span>
+              <a className="value" href={`tel:${contact.phone.replace(/[^+\d]/g, '')}`}>
+                {contact.phone}
+              </a>
+            </div>
+          ) : null}
+          {contact.email ? (
+            <div className="fact">
+              <span>E-posta</span>
+              <a className="value" href={`mailto:${contact.email}`}>
+                {contact.email}
+              </a>
+            </div>
+          ) : null}
+          {contact.address ? (
+            <div className="fact">
+              <span>Adres</span>
+              <span className="value">{contact.address}</span>
+            </div>
+          ) : null}
+          {contact.notes ? (
+            <div className="fact">
+              <span>Not</span>
+              <span className="value">{contact.notes}</span>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {steps.length === 0 ? (
         <div className="card empty">
@@ -114,7 +157,7 @@ export function ProjeDetay() {
 
       {openStep ? <StepDialog stepId={openStep} onClose={() => setOpenStep(null)} /> : null}
       {adding ? <AddStepDialog project={project} data={data} onClose={() => setAdding(false)} /> : null}
-      {editing ? <EditProjectDialog project={project} onClose={() => setEditing(false)} /> : null}
+      {editing ? <EditProjectDialog project={project} data={data} onClose={() => setEditing(false)} /> : null}
     </div>
   )
 }
@@ -192,12 +235,13 @@ function AddStepDialog({ project, data, onClose }: { project: Project; data: Wor
   )
 }
 
-function EditProjectDialog({ project, onClose }: { project: Project; onClose: () => void }) {
+function EditProjectDialog({ project, data, onClose }: { project: Project; data: Workshop; onClose: () => void }) {
   const navigate = useNavigate()
   const { change } = useWorkshop()
   const [name, setName] = useState(project.name)
   const [code, setCode] = useState(project.code ?? '')
   const [due, setDue] = useState(project.due_date ?? '')
+  const [companyId, setCompanyId] = useState(project.company_id ?? '')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -219,7 +263,7 @@ function EditProjectDialog({ project, onClose }: { project: Project; onClose: ()
       () =>
         supabase
           .from('projects')
-          .update({ name: name.trim(), code: code.trim() || null, due_date: due || null })
+          .update({ name: name.trim(), code: code.trim() || null, due_date: due || null, company_id: companyId || null })
           .eq('id', project.id),
       onClose,
     )
@@ -231,6 +275,18 @@ function EditProjectDialog({ project, onClose }: { project: Project; onClose: ()
         <Field label="Proje adı">
           {(id) => (
             <input id={id} className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} required />
+          )}
+        </Field>
+        <Field label="Firma">
+          {(id) => (
+            <select id={id} className="input" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+              <option value="">Seçilmedi</option>
+              {data.companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
           )}
         </Field>
         <div className="pair">

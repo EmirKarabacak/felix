@@ -10,6 +10,7 @@ type Tab = { to: string; label: string; icon: IconName }
 
 const MANAGER_TABS: Tab[] = [
   { to: '/projeler', label: 'Projeler', icon: 'folder' },
+  { to: '/firmalar', label: 'Firmalar', icon: 'building' },
   { to: '/turler', label: 'Türler', icon: 'layers' },
   { to: '/ekip', label: 'Ekip', icon: 'people' },
 ]

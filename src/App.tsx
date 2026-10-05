@@ -9,6 +9,7 @@ import { Login } from './pages/Login'
 import { Islerim } from './pages/Islerim'
 import { ProjeDetay } from './pages/ProjeDetay'
 import { Projeler } from './pages/Projeler'
+import { Firmalar } from './pages/Firmalar'
 import { Turler } from './pages/Turler'
 import { WorkshopProvider } from './lib/workshop'
 import { Setup } from './pages/Setup'
@@ -49,6 +50,7 @@ export function App() {
           <Route path="/projeler/:id" element={<ProjeDetay />} />
           {manages ? (
             <>
+              <Route path="/firmalar" element={<Firmalar />} />
               <Route path="/turler" element={<Turler />} />
               <Route path="/ekip" element={<Ekip />} />
               <Route path="*" element={<Navigate to="/projeler" replace />} />

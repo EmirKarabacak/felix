@@ -76,7 +76,8 @@ h3 {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
   color: inherit;
 }
@@ -803,6 +804,95 @@ select.input {
   line-height: 1.7;
 }
 
+/* Firmalar */
+.companies {
+  padding: 0 0.5rem 0 1rem;
+}
+
+.company {
+  width: 100%;
+  min-height: 60px;
+  padding: 0.5rem 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 5rem 28px;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.company-name {
+  font-weight: 600;
+}
+
+.company-contact {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.company-count {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.company .go {
+  color: #8e8e93;
+  display: flex;
+}
+
+.search {
+  max-width: 24rem;
+}
+
+.textarea {
+  min-height: 4.5rem;
+  padding: 0.625rem 0.875rem;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.chip-link {
+  color: var(--accent-ink);
+  background: var(--accent-tint);
+  text-decoration: none;
+  white-space: normal;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.company-line {
+  margin-top: 0.25rem;
+  font-size: 1rem;
+}
+
+.customer .fact {
+  align-items: flex-start;
+  padding: 0.75rem 0;
+  min-height: 0;
+}
+
+.customer .fact > span:first-child {
+  flex: 0 0 7rem;
+  color: var(--ink-2);
+}
+
+.customer .value {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--ink);
+  text-align: left;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.customer a.value {
+  color: var(--accent);
+  text-decoration: none;
+}
+
 /* Proje detay */
 .progress-line {
   display: flex;
@@ -1076,6 +1166,7 @@ select.input {
 }
 
 .dialog .card,
+.dialog .textarea,
 .dialog .input,
 .dialog .date-input,
 .dialog .note,
@@ -1287,6 +1378,17 @@ select.input {
   .step-due:empty { display: none; }
   .step-status { grid-area: status; }
   .step .go { grid-area: go; }
+
+  .company {
+    grid-template-columns: minmax(0, 1fr) auto 24px;
+    grid-template-areas: 'name count go' 'contact count go';
+    row-gap: 0;
+  }
+
+  .company-name { grid-area: name; }
+  .company-contact { grid-area: contact; }
+  .company-count { grid-area: count; }
+  .company .go { grid-area: go; }
 
   .head-actions {
     width: 100%;

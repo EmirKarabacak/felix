@@ -302,7 +302,7 @@ watch(selim, 'selim')
 await selim.goto(BASE)
 await signIn(selim, 'selim', 'selim123')
 await selim.getByRole('button', { name: 'Yeni proje' }).waitFor()
-expect((await selim.locator('.topnav a').allInnerTexts()).join('|') === 'Projeler|Türler|Ekip', 'a manager gets the same sections as the CEO')
+expect((await selim.locator('.topnav a').allInnerTexts()).join('|') === 'Projeler|Firmalar|Türler|Ekip', 'a manager gets the same sections as the CEO')
 
 await browser.close()
 if (problems.length) {
