@@ -202,6 +202,33 @@ await signIn(page, 'emir', 'emir5678')
 await page.getByRole('heading', { name: 'Ekip' }).waitFor()
 ok('a person can change their own password')
 
+// 9b. "Beni hatırla": on keeps the sign-in for a new tab, off does not
+{
+  const tab = await desktop.newPage()
+  await tab.goto(BASE)
+  await tab.getByRole('heading', { name: 'Ekip' }).waitFor()
+  ok('with "Beni hatırla" on, a new tab is already signed in')
+  await tab.close()
+  await signOut(page)
+  expect(await page.getByRole('switch', { name: /Beni hatırla/ }).isChecked(), '"Beni hatırla" is on by default')
+  await page.getByRole('switch', { name: /Beni hatırla/ }).uncheck()
+  await signIn(page, 'emir', 'emir5678')
+  await page.getByRole('heading', { name: 'Ekip' }).waitFor()
+  await page.reload()
+  await page.getByRole('heading', { name: 'Ekip' }).waitFor()
+  ok('with it off, reloading the same tab stays signed in')
+  const kept = await page.evaluate(() => Object.keys(localStorage).some((k) => k.endsWith('-auth-token')))
+  const tab2 = await desktop.newPage()
+  await tab2.goto(BASE)
+  await tab2.getByRole('button', { name: 'Giriş yap' }).waitFor()
+  expect(!kept, 'with it off, nothing is kept on the device and a new tab asks to sign in')
+  await tab2.close()
+  await signOut(page)
+  await page.getByRole('switch', { name: /Beni hatırla/ }).check()
+  await signIn(page, 'emir', 'emir5678')
+  await page.getByRole('heading', { name: 'Ekip' }).waitFor()
+}
+
 // 10. the team page on a phone
 await signIn(mobile, 'emir', 'emir5678')
 await mobile.getByRole('heading', { name: 'Ekip' }).waitFor()

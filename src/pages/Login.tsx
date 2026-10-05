@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { ErrorNote, Field, Icon } from '../components/ui'
 import { friendly } from '../lib/errors'
-import { supabase } from '../lib/supabase'
+import { rememberMe, supabase } from '../lib/supabase'
 import { loginIdToEmail } from '../../shared/username'
 
 export function Login({ notice }: { notice: string | null }) {
   const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
+  const [remember, setRemember] = useState(rememberMe.get)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(notice)
 
@@ -15,6 +16,7 @@ export function Login({ notice }: { notice: string | null }) {
     if (busy) return
     setBusy(true)
     setError(null)
+    rememberMe.set(remember) // must be decided before the sign-in is stored
     const { error } = await supabase.auth.signInWithPassword({
       email: loginIdToEmail(loginId),
       password,
@@ -65,6 +67,19 @@ export function Login({ notice }: { notice: string | null }) {
               />
             )}
           </Field>
+          <label className="switch-row">
+            <span>
+              Beni hatırla
+              <span className="hint">Kapalıysa tarayıcı kapanınca çıkış yapılır.</span>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              className="switch"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />
+          </label>
           <ErrorNote>{error}</ErrorNote>
           <button type="submit" className="btn btn-primary btn-big press" disabled={busy}>
             {busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
