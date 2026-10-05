@@ -32,3 +32,18 @@ export function loginIdToEmail(typed: string): string {
 }
 
 export const MIN_PASSWORD_LENGTH = 6
+
+/**
+ * Supabase's dashboard shows the project address in several forms, some with
+ * "/rest/v1/" on the end. The client needs only the base address, so anything
+ * after the host is dropped.
+ */
+export function baseUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const trimmed = value.trim()
+  try {
+    return new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`).origin
+  } catch {
+    return trimmed
+  }
+}

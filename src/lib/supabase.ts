@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
+import { baseUrl } from '../../shared/username'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const url = baseUrl(import.meta.env.VITE_SUPABASE_URL)
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim()
 
 /** False when the app was built without its Supabase settings. */
 export const isConfigured = Boolean(url && anonKey)

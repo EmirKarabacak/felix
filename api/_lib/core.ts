@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { timingSafeEqual } from 'node:crypto'
 import {
   MIN_PASSWORD_LENGTH,
+  baseUrl,
   isValidUsername,
   normalizeUsername,
   usernameToEmail,
@@ -20,8 +21,8 @@ const fail = (status: number, error: string): Reply => ({ status, body: { error 
 const ok = (body: Record<string, unknown> = {}): Reply => ({ status: 200, body: { ok: true, ...body } })
 
 export function adminClient(): SupabaseClient {
-  const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const url = baseUrl(process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL)
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
   if (!url || !key) throw new Error('Sunucu ayarları eksik: SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY gerekli.')
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
 }

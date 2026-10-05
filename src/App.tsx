@@ -65,6 +65,9 @@ function diagnose(message: string): string {
   if (/api key|apikey|jwt|unauthorized|401/i.test(message)) {
     return 'Anahtar hatalı: Vercel ayarlarındaki VITE_SUPABASE_ANON_KEY, Supabase projesindeki anon (publishable) anahtarla aynı olmalı.'
   }
+  if (/invalid path/i.test(message)) {
+    return 'Veritabanı adresi hatalı: Vercel ayarlarındaki VITE_SUPABASE_URL yalnızca https://....supabase.co biçiminde olmalı.'
+  }
   if (/failed to fetch|networkerror|load failed/i.test(message)) {
     return 'Veritabanına ulaşılamıyor: Vercel ayarlarındaki VITE_SUPABASE_URL hatalı olabilir ya da internet bağlantısı yok.'
   }
