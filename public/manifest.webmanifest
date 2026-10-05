@@ -1,0 +1,11 @@
+{
+  "name": "Felix",
+  "short_name": "Felix",
+  "description": "Atölye iş takibi",
+  "lang": "tr",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F5F5F7",
+  "theme_color": "#F5F5F7",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
