@@ -1333,6 +1333,10 @@ select.input {
   min-height: 1.5rem;
 }
 
+.job > .badge {
+  align-self: flex-start;
+}
+
 .job-name {
   font-size: 1.25rem;
   font-weight: 600;
