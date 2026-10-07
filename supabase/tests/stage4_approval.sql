@@ -28,26 +28,33 @@ begin
   return n;
 end $$;
 
-select pg_temp.expect((select count(*) from public.step_types where needs_approval) = 0, 'no step type needs approval until someone says so');
-
--- manager marks a type, builds a project type and a project from it
+-- manager builds a project type and a project from it, choosing which steps need approval
 set role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
-insert into public.step_types (name, needs_approval) values ('Onaylı test', true), ('Onaysız iş', false);
+insert into public.step_types (name) values ('Onaylı test'), ('Onaysız iş');
 insert into public.project_types (name) values ('Onay türü');
 insert into public.project_type_steps (project_type_id, step_type_id, position)
 select pt.id, st.id, case st.name when 'Onaylı test' then 1 else 2 end
 from public.project_types pt, public.step_types st
 where pt.name = 'Onay türü' and st.name in ('Onaylı test', 'Onaysız iş');
-select public.create_project('Onay projesi', null, null, (select id from public.project_types where name = 'Onay türü')) as project_id \gset
+select id as type_id from public.project_types where name = 'Onay türü' \gset
+select pts.id as gated_row from public.project_type_steps pts join public.step_types st on st.id = pts.step_type_id
+  where pts.project_type_id = :'type_id' and st.name = 'Onaylı test' \gset
+
+select public.create_project('Onaysız proje', null, null, :'type_id') as none_id \gset
+select pg_temp.expect((select count(*) from public.project_steps where project_id = :'none_id' and needs_approval) = 0, 'a project created without choosing any has no steps needing approval');
+
+select public.create_project('Onay projesi', null, null, :'type_id', null, array[:'gated_row']::uuid[]) as project_id \gset
 select id as gated from public.project_steps where project_id = :'project_id' and name = 'Onaylı test' \gset
 select id as plain from public.project_steps where project_id = :'project_id' and name = 'Onaysız iş' \gset
-select pg_temp.expect((select needs_approval from public.project_steps where id = :'gated'), 'a new project copies "needs approval" from the step type');
-select pg_temp.expect((select not needs_approval from public.project_steps where id = :'plain'), 'and leaves other steps as they were');
+select pg_temp.expect((select needs_approval from public.project_steps where id = :'gated'), 'the step chosen at creation needs approval');
+select pg_temp.expect((select not needs_approval from public.project_steps where id = :'plain'), 'and the one not chosen does not');
+select pg_temp.expect((select count(*) from public.project_steps where project_id = :'none_id' and needs_approval) = 0, 'the choice belongs to that project only');
+select public.create_project('Yabancı seçim', null, null, :'type_id', null, array['00000000-0000-0000-0000-0000000000ff']::uuid[]) as stray_id \gset
+select pg_temp.expect((select count(*) from public.project_steps where project_id = :'stray_id' and needs_approval) = 0, 'an id that is not one of the type''s steps is ignored');
 select public.add_step(:'project_id', (select id from public.step_types where name = 'Onaylı test')) as added \gset
-select pg_temp.expect((select needs_approval from public.project_steps where id = :'added'), 'a step added later copies it too');
-update public.step_types set needs_approval = false where name = 'Onaylı test';
-select pg_temp.expect((select needs_approval from public.project_steps where id = :'gated'), 'changing the type afterwards does not change running projects');
+select pg_temp.expect((select not needs_approval from public.project_steps where id = :'added'), 'a step added later starts without approval');
+select pg_temp.expect(pg_temp.affected(format($$update public.project_steps set needs_approval = true where id = %L$$, :'added')) = 1, 'and a manager can switch it on for that step');
 insert into public.step_assignees (step_id, user_id) values
   (:'gated', '00000000-0000-0000-0000-00000000000c'),
   (:'plain', '00000000-0000-0000-0000-00000000000c'),

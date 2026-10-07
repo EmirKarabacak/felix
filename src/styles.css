@@ -809,6 +809,35 @@ select.input {
   gap: 0.375rem;
 }
 
+.approval-list {
+  padding: 0 0.75rem 0 0.875rem;
+  margin-bottom: 0.375rem;
+}
+
+.approval-row {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  cursor: pointer;
+}
+
+.approval-row .no {
+  flex: 0 0 1.25rem;
+}
+
+.approval-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 500;
+}
+
+.approval-label {
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
 .preview {
   margin: 0;
   padding: 0.625rem 0.875rem 0.625rem 2.25rem;

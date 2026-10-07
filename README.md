@@ -17,7 +17,7 @@ every project visible read-only to workers.
 **Firmalar (done):** customer companies with contact details (visible to the
 CEO and managers only), chosen when creating a project.
 
-**Approval and Takvim (done):** step types can require a manager's approval
+**Approval and Takvim (done):** when creating a project you choose which steps need a manager's approval
 before a worker's finish counts; Projeler has a second view, Takvim, showing
 projects as bars on a calendar.
 

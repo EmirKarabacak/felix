@@ -44,7 +44,7 @@ export type CompanyDetails = {
   address: string | null
   notes: string | null
 }
-export type StepType = NamedItem & { needs_approval: boolean }
+export type StepType = NamedItem
 export type ProjectTypeStep = { id: string; project_type_id: string; step_type_id: string; position: number }
 
 type Raw = {
@@ -99,7 +99,7 @@ async function load(): Promise<Raw> {
     supabase.from('step_assignees').select('step_id, user_id'),
     supabase.from('profiles').select('id, full_name, username, panel, meslek_id, active').order('full_name'),
     supabase.from('meslek_turleri').select('id, name').order('name'),
-    supabase.from('step_types').select('id, name, needs_approval').order('name'),
+    supabase.from('step_types').select('id, name').order('name'),
     supabase.from('project_types').select('id, name').order('name'),
     supabase.from('project_type_steps').select('id, project_type_id, step_type_id, position').order('position'),
     supabase.from('companies').select('id, name').order('name'),

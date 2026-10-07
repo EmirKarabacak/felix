@@ -284,7 +284,24 @@ function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => vo
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Which of the type's steps should wait for a manager's approval in this project.
+  const [approval, setApproval] = useState<ReadonlySet<string>>(new Set())
+
   const preview = typeId ? data.typeStepsOf(typeId) : []
+  const chosen = preview.filter((s) => approval.has(s.id)).map((s) => s.id)
+
+  function pickType(next: string) {
+    setTypeId(next)
+    setApproval(new Set()) // the choices belong to the previous type's steps
+  }
+
+  function toggleApproval(id: string) {
+    setApproval((now) => {
+      const next = new Set(now)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -310,6 +327,9 @@ function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => vo
       p_due_date: due || null,
       p_type_id: typeId || null,
       p_company_id: company,
+      // Left out when nothing is chosen, so a database that has not had the
+      // 0005 update yet can still create ordinary projects.
+      ...(chosen.length ? { p_approval: chosen } : {}),
     })
     if (error) {
       setError(friendly(error))
@@ -386,7 +406,7 @@ function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => vo
         </div>
         <Field label="Proje türü" hint="Türü seçince adımları otomatik eklenir. Sonra adım ekleyip kaldırabilirsiniz.">
           {(id) => (
-            <select id={id} className="input" value={typeId} onChange={(e) => setTypeId(e.target.value)}>
+            <select id={id} className="input" value={typeId} onChange={(e) => pickType(e.target.value)}>
               <option value="">Boş proje (adımsız)</option>
               {data.projectTypes.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -400,11 +420,29 @@ function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => vo
           <div>
             <div className="field-label">Eklenecek adımlar</div>
             {preview.length ? (
-              <ol className="card preview">
-                {preview.map((s) => (
-                  <li key={s.id}>{s.name}</li>
-                ))}
-              </ol>
+              <>
+                <div className="card rows approval-list" role="group" aria-label="Eklenecek adımlar">
+                  {preview.map((s, i) => (
+                    <label key={s.id} className="approval-row">
+                      <span className="mono no">{i + 1}</span>
+                      <span className="approval-name">{s.name}</span>
+                      <span className="approval-label">Onay gerekir</span>
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        className="switch"
+                        aria-label={`${s.name}: onay gerekir`}
+                        checked={approval.has(s.id)}
+                        onChange={() => toggleApproval(s.id)}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <div className="hint">
+                  "Onay gerekir" açık olan adımlarda, işçi işi bitirdiğinde adım bir yönetici onaylayana kadar bitmiş
+                  sayılmaz. Sonradan adımın kendi ekranından değiştirebilirsiniz.
+                </div>
+              </>
             ) : (
               <div className="sub">Bu türde hazır adım yok.</div>
             )}
