@@ -16,6 +16,7 @@ export type Call = { method: string; body: unknown; authorization: string | unde
 
 type Panel = 'ceo' | 'manager' | 'worker'
 const PANELS: Panel[] = ['ceo', 'manager', 'worker']
+const BOLUMLER = ['uretim', 'tasarim', 'satinalma', 'muhasebe']
 
 const fail = (status: number, error: string): Reply => ({ status, body: { error } })
 const ok = (body: Record<string, unknown> = {}): Reply => ({ status: 200, body: { ok: true, ...body } })
@@ -57,6 +58,9 @@ async function createPerson(
   person: NewPerson,
   panel: Panel,
   meslekId: string | null,
+  // Bölüm and workshop (0006). Only sent once that migration has run, so they
+  // are left out of the insert when empty.
+  place: { bolum: string | null; atolyeId: string | null } = { bolum: null, atolyeId: null },
 ): Promise<Reply> {
   const taken = await db.from('profiles').select('id').eq('username', person.username).maybeSingle()
   if (taken.error) return fail(500, taken.error.message)
@@ -78,6 +82,7 @@ async function createPerson(
     username: person.username,
     panel,
     meslek_id: meslekId,
+    ...(place.bolum ? { bolum: place.bolum, atolye_id: place.bolum === 'uretim' ? place.atolyeId : null } : {}),
   })
   if (inserted.error) {
     // Do not leave a sign-in without a profile behind.
@@ -140,7 +145,9 @@ export async function handleUsers(call: Call, db: SupabaseClient = adminClient()
     if (typeof person === 'string') return fail(400, person)
     const panel = PANELS.includes(input.panel as Panel) ? (input.panel as Panel) : 'worker'
     const meslekId = text(input.meslek_id) || null
-    return createPerson(db, person, panel, meslekId)
+    const bolum = BOLUMLER.includes(text(input.bolum)) ? text(input.bolum) : null
+    const atolyeId = text(input.atolye_id) || null
+    return createPerson(db, person, panel, meslekId, { bolum, atolyeId })
   }
 
   const id = text(input.id)

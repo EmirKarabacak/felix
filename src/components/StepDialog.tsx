@@ -6,6 +6,7 @@ import {
   SHOWN_LABEL,
   formatDay,
   formatMoment,
+  groupPeople,
   shownStatus,
   stepAction,
   useWorkshop,
@@ -270,29 +271,35 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
       <div>
         <div className="field-label">Sorumlular</div>
         {manages ? (
-          <div className="card rows checklist" role="group" aria-label="Sorumlular">
-            {data.people
-              .filter((p) => p.active || assignees.some((a) => a.id === p.id))
-              .map((p) => {
-                const on = assignees.some((a) => a.id === p.id)
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className="check-row press"
-                    aria-pressed={on}
-                    disabled={busy}
-                    onClick={() => toggle(p.id, on)}
-                  >
-                    <span>
-                      {p.full_name}
-                      <span className="sub"> {data.meslekler.find((m) => m.id === p.meslek_id)?.name ?? ''}</span>
-                    </span>
-                    {on ? <Icon name="check" /> : null}
-                  </button>
-                )
-              })}
-          </div>
+          groupPeople(
+            data,
+            data.people.filter((p) => p.active || assignees.some((a) => a.id === p.id)),
+          ).map((g) => (
+            <div key={g.title ?? 'all'}>
+              {g.title ? <div className="check-group">{g.title}</div> : null}
+              <div className="card rows checklist" role="group" aria-label={g.title ?? 'Sorumlular'}>
+                {g.people.map((p) => {
+                  const on = assignees.some((a) => a.id === p.id)
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="check-row press"
+                      aria-pressed={on}
+                      disabled={busy}
+                      onClick={() => toggle(p.id, on)}
+                    >
+                      <span>
+                        {p.full_name}
+                        <span className="sub"> {data.meslekler.find((m) => m.id === p.meslek_id)?.name ?? ''}</span>
+                      </span>
+                      {on ? <Icon name="check" /> : null}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))
         ) : assignees.length ? (
           <div className="chips">
             {assignees.map((p) => (

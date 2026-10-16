@@ -4,6 +4,7 @@ const KNOWN: [RegExp, string][] = [
   [/user is banned/i, 'Bu hesap kapatılmış. Yöneticinize söyleyin.'],
   [/failed to fetch|networkerror|load failed/i, 'Bağlantı kurulamadı. İnternetinizi kontrol edip tekrar deneyin.'],
   [/duplicate key.*meslek_turleri_name/i, 'Bu adla bir meslek türü zaten var.'],
+  [/duplicate key.*atolyeler_name/i, 'Bu adla bir atölye zaten var.'],
   [/duplicate key.*step_types_name/i, 'Bu adla bir adım türü zaten var.'],
   [/duplicate key.*project_types_name/i, 'Bu adla bir proje türü zaten var.'],
   [/duplicate key.*projects_code/i, 'Bu proje kodu zaten kullanılıyor.'],

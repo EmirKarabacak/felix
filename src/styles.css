@@ -501,6 +501,16 @@ select.input {
 }
 
 /* Ekip */
+.stack.groups {
+  gap: 1.5rem;
+}
+
+h3 .count {
+  color: var(--ink-2);
+  font-weight: 500;
+  margin-left: 0.25rem;
+}
+
 .people {
   padding: 0 0.5rem 0 1rem;
 }
@@ -1223,6 +1233,13 @@ select.input {
 
 .check-row[aria-pressed='true'] .sub {
   font-weight: 400;
+}
+
+.check-group {
+  margin: 0.875rem 0 0 0.875rem;
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 /* Editable name lists (step types, and the add-step sheet) */

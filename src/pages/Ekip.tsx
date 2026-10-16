@@ -1,9 +1,21 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { EditableList } from '../components/EditableList'
 import { Dialog, ErrorNote, Field, Icon, Segmented, Spinner } from '../components/ui'
 import { callApi } from '../lib/api'
 import { useAuth, useProfile } from '../lib/auth'
 import { friendly } from '../lib/errors'
-import { PANEL_LABEL, supabase, type Meslek, type Panel, type Profile } from '../lib/supabase'
+import {
+  BOLUMLER,
+  BOLUM_LABEL,
+  PANEL_LABEL,
+  fetchProfiles,
+  supabase,
+  type Atolye,
+  type Bolum,
+  type Meslek,
+  type Panel,
+  type Profile,
+} from '../lib/supabase'
 import { useWorkshop } from '../lib/workshop'
 import { MIN_PASSWORD_LENGTH, isValidUsername, normalizeUsername } from '../../shared/username'
 
@@ -15,6 +27,8 @@ const PANEL_OPTIONS: { value: Panel; label: string }[] = [
 
 const PANEL_ORDER: Record<Panel, number> = { ceo: 0, manager: 1, worker: 2 }
 
+const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'tr')
+
 export function Ekip() {
   const me = useProfile()
   const { reloadProfile } = useAuth()
@@ -23,26 +37,29 @@ export function Ekip() {
 
   const [people, setPeople] = useState<Profile[] | null>(null)
   const [meslekler, setMeslekler] = useState<Meslek[]>([])
+  const [atolyeler, setAtolyeler] = useState<Atolye[]>([])
+  const [bolumReady, setBolumReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<Profile | null>(null)
   const [adding, setAdding] = useState(false)
 
   const load = useCallback(async () => {
-    const [p, m] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('id, full_name, username, panel, meslek_id, active')
-        .eq('active', true)
-        .order('full_name'),
+    const [p, m, a] = await Promise.all([
+      fetchProfiles({ active: true }),
       supabase.from('meslek_turleri').select('id, name').order('name'),
+      supabase.from('atolyeler').select('id, name').order('name'),
     ])
-    if (p.error || m.error) {
-      setError(friendly(p.error ?? m.error))
+    // The workshop list only exists once 0006_bolumler.sql has run.
+    const atolyeError = p.bolumReady ? a.error : null
+    if (p.error || m.error || atolyeError) {
+      setError(friendly(p.error ?? m.error ?? atolyeError))
       return
     }
     setError(null)
-    setPeople(p.data as Profile[])
-    setMeslekler((m.data as Meslek[]).sort((a, b) => a.name.localeCompare(b.name, 'tr')))
+    setPeople(p.data ?? [])
+    setBolumReady(p.bolumReady)
+    setMeslekler((m.data as Meslek[]).sort(byName))
+    setAtolyeler(p.bolumReady ? (a.data as Atolye[]).sort(byName) : [])
     // Projects show people and meslek names too; keep them in step.
     void reloadWorkshop()
   }, [reloadWorkshop])
@@ -52,13 +69,33 @@ export function Ekip() {
   }, [load])
 
   const meslekName = useMemo(() => new Map(meslekler.map((m) => [m.id, m.name])), [meslekler])
-  const sorted = useMemo(
-    () =>
-      [...(people ?? [])].sort(
-        (a, b) => PANEL_ORDER[a.panel] - PANEL_ORDER[b.panel] || a.full_name.localeCompare(b.full_name, 'tr'),
-      ),
-    [people],
-  )
+  const atolyeName = useMemo(() => new Map(atolyeler.map((a) => [a.id, a.name])), [atolyeler])
+
+  // One card per bölüm, people without one last. Before 0006 has run, one card for everyone.
+  const groups = useMemo(() => {
+    const atolyeOf = (p: Profile) => (p.atolye_id && atolyeName.get(p.atolye_id)) || '\uffff'
+    const sorted = [...(people ?? [])].sort(
+      (a, b) =>
+        PANEL_ORDER[a.panel] - PANEL_ORDER[b.panel] ||
+        atolyeOf(a).localeCompare(atolyeOf(b), 'tr') ||
+        a.full_name.localeCompare(b.full_name, 'tr'),
+    )
+    if (!bolumReady) return [{ key: 'all', title: null, people: sorted }]
+    const keys: (Bolum | null)[] = [...BOLUMLER, null]
+    return keys
+      .map((key) => ({
+        key: key ?? 'none',
+        title: key ? BOLUM_LABEL[key] : 'Bölüm seçilmedi',
+        people: sorted.filter((p) => p.bolum === key),
+      }))
+      .filter((g) => g.people.length > 0)
+  }, [people, bolumReady, atolyeName])
+
+  function placeOf(p: Profile) {
+    const meslek = p.meslek_id ? meslekName.get(p.meslek_id) : undefined
+    const atolye = p.atolye_id ? atolyeName.get(p.atolye_id) : undefined
+    return [atolye, meslek].filter(Boolean).join(' · ') || 'Meslek seçilmedi'
+  }
 
   async function afterChange(changedId?: string) {
     await load()
@@ -85,34 +122,49 @@ export function Ekip() {
       <ErrorNote>{error}</ErrorNote>
 
       <div className="split">
-        <section className="main card people rows" aria-label="Kişiler">
+        <div className="main stack groups">
           {people === null ? (
             error ? null : (
               <Spinner />
             )
           ) : (
-            sorted.map((p) => (
-              <button key={p.id} type="button" className="person press" onClick={() => setEditing(p)}>
-                <span className="who">
-                  <span className="name">{p.full_name}</span>
-                  <span className="mono"> {p.username}</span>
-                </span>
-                <span className="meslek">{(p.meslek_id && meslekName.get(p.meslek_id)) || 'Meslek seçilmedi'}</span>
-                <span className={`badge badge-${p.panel}`}>{PANEL_LABEL[p.panel]}</span>
-                <span className="go">
-                  <Icon name="chevron" size={18} />
-                </span>
-              </button>
+            groups.map((g) => (
+              <section key={g.key} className="stack" aria-label={g.title ?? 'Kişiler'}>
+                {g.title ? (
+                  <h3>
+                    {g.title} <span className="count">{g.people.length}</span>
+                  </h3>
+                ) : null}
+                <div className="card people rows">
+                  {g.people.map((p) => (
+                    <button key={p.id} type="button" className="person press" onClick={() => setEditing(p)}>
+                      <span className="who">
+                        <span className="name">{p.full_name}</span>
+                        <span className="mono"> {p.username}</span>
+                      </span>
+                      <span className="meslek">{placeOf(p)}</span>
+                      <span className={`badge badge-${p.panel}`}>{PANEL_LABEL[p.panel]}</span>
+                      <span className="go">
+                        <Icon name="chevron" size={18} />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
             ))
           )}
-        </section>
+        </div>
 
-        <MeslekTurleri meslekler={meslekler} people={people ?? []} onChange={() => void load()} />
+        <div className="side">
+          <MeslekTurleri meslekler={meslekler} people={people ?? []} onChange={() => void load()} />
+          {bolumReady ? <Atolyeler atolyeler={atolyeler} people={people ?? []} onChange={load} /> : null}
+        </div>
       </div>
 
       {adding ? (
         <AddPersonDialog
           meslekler={meslekler}
+          atolyeler={bolumReady ? atolyeler : null}
           onClose={() => setAdding(false)}
           onSaved={() => {
             setAdding(false)
@@ -125,6 +177,7 @@ export function Ekip() {
         <EditPersonDialog
           person={editing}
           meslekler={meslekler}
+          atolyeler={bolumReady ? atolyeler : null}
           isCeo={isCeo}
           isSelf={editing.id === me.id}
           onClose={() => setEditing(null)}
@@ -162,12 +215,76 @@ function MeslekSelect({
   )
 }
 
+/** Bölüm, and the workshop when the bölüm is Üretim. Empty strings mean "not chosen". */
+type Place = { bolum: Bolum | ''; atolyeId: string }
+
+/** What a Place stores. Only Üretim has workshops, so any other bölüm clears it. */
+function placeColumns(place: Place) {
+  return {
+    bolum: place.bolum || null,
+    atolye_id: place.bolum === 'uretim' ? place.atolyeId || null : null,
+  }
+}
+
+function PlaceFields({
+  value,
+  atolyeler,
+  onChange,
+}: {
+  value: Place
+  atolyeler: Atolye[]
+  onChange: (value: Place) => void
+}) {
+  return (
+    <>
+      <Field label="Bölüm" hint="Kişinin uygulamada hangi bölümleri göreceğini belirler.">
+        {(id) => (
+          <select
+            id={id}
+            className="input"
+            value={value.bolum}
+            onChange={(e) => onChange({ ...value, bolum: e.target.value as Bolum | '' })}
+          >
+            <option value="">Seçilmedi</option>
+            {BOLUMLER.map((b) => (
+              <option key={b} value={b}>
+                {BOLUM_LABEL[b]}
+              </option>
+            ))}
+          </select>
+        )}
+      </Field>
+      {value.bolum === 'uretim' ? (
+        <Field label="Atölye">
+          {(id) => (
+            <select
+              id={id}
+              className="input"
+              value={value.atolyeId}
+              onChange={(e) => onChange({ ...value, atolyeId: e.target.value })}
+            >
+              <option value="">Seçilmedi</option>
+              {atolyeler.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+      ) : null}
+    </>
+  )
+}
+
 function AddPersonDialog({
   meslekler,
+  atolyeler,
   onClose,
   onSaved,
 }: {
   meslekler: Meslek[]
+  atolyeler: Atolye[] | null
   onClose: () => void
   onSaved: () => void
 }) {
@@ -177,6 +294,7 @@ function AddPersonDialog({
   const [password, setPassword] = useState('')
   const [panel, setPanel] = useState<Panel>('worker')
   const [meslekId, setMeslekId] = useState('')
+  const [place, setPlace] = useState<Place>({ bolum: 'uretim', atolyeId: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -196,6 +314,7 @@ function AddPersonDialog({
         password,
         panel,
         meslek_id: meslekId || null,
+        ...(atolyeler ? placeColumns(place) : {}),
       })
       onSaved()
     } catch (err) {
@@ -258,6 +377,7 @@ function AddPersonDialog({
           )}
         </Field>
         <Segmented label="Panel" value={panel} options={PANEL_OPTIONS} onChange={setPanel} />
+        {atolyeler ? <PlaceFields value={place} atolyeler={atolyeler} onChange={setPlace} /> : null}
         <Field label="Meslek">
           {(id) => <MeslekSelect id={id} value={meslekId} meslekler={meslekler} onChange={setMeslekId} />}
         </Field>
@@ -273,6 +393,7 @@ function AddPersonDialog({
 function EditPersonDialog({
   person,
   meslekler,
+  atolyeler,
   isCeo,
   isSelf,
   onClose,
@@ -280,6 +401,7 @@ function EditPersonDialog({
 }: {
   person: Profile
   meslekler: Meslek[]
+  atolyeler: Atolye[] | null
   isCeo: boolean
   isSelf: boolean
   onClose: () => void
@@ -288,6 +410,7 @@ function EditPersonDialog({
   const [fullName, setFullName] = useState(person.full_name)
   const [panel, setPanel] = useState<Panel>(person.panel)
   const [meslekId, setMeslekId] = useState(person.meslek_id ?? '')
+  const [place, setPlace] = useState<Place>({ bolum: person.bolum ?? '', atolyeId: person.atolye_id ?? '' })
   const [newPassword, setNewPassword] = useState('')
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -309,7 +432,11 @@ function EditPersonDialog({
   function save(e: FormEvent) {
     e.preventDefault()
     void guard(async () => {
-      const changes: Record<string, unknown> = { full_name: fullName.trim(), meslek_id: meslekId || null }
+      const changes: Record<string, unknown> = {
+        full_name: fullName.trim(),
+        meslek_id: meslekId || null,
+        ...(atolyeler ? placeColumns(place) : {}),
+      }
       if (isCeo) changes.panel = panel
       const { error } = await supabase.from('profiles').update(changes).eq('id', person.id)
       if (error) throw error
@@ -340,6 +467,7 @@ function EditPersonDialog({
             />
           )}
         </Field>
+        {atolyeler ? <PlaceFields value={place} atolyeler={atolyeler} onChange={setPlace} /> : null}
         <Field label="Meslek">
           {(id) => <MeslekSelect id={id} value={meslekId} meslekler={meslekler} onChange={setMeslekId} />}
         </Field>
@@ -459,7 +587,7 @@ function MeslekTurleri({
   }
 
   return (
-    <section className="side" aria-label="Meslek türleri">
+    <section className="stack" aria-label="Meslek türleri">
       <h3>Meslek Türleri</h3>
       <div className="card meslek-list rows">
         {meslekler.length === 0 ? <div className="empty">Henüz meslek türü yok.</div> : null}
@@ -530,6 +658,42 @@ function MeslekTurleri({
           </button>
         </div>
       </form>
+    </section>
+  )
+}
+
+function Atolyeler({
+  atolyeler,
+  people,
+  onChange,
+}: {
+  atolyeler: Atolye[]
+  people: Profile[]
+  onChange: () => Promise<void>
+}) {
+  const count = (a: Atolye) => people.filter((p) => p.atolye_id === a.id).length
+
+  async function run(work: () => PromiseLike<{ error: unknown }>): Promise<string | null> {
+    const { error } = await work()
+    if (error) return friendly(error)
+    await onChange()
+    return null
+  }
+
+  return (
+    <section className="stack" aria-label="Atölyeler">
+      <h3>Atölyeler</h3>
+      <div className="sub">Üretim bölümündeki kişiler bir atölyeye bağlanır.</div>
+      <EditableList
+        items={atolyeler}
+        noun="atölye"
+        placeholder="Örnek: Boya atölyesi"
+        note={(a) => (count(a) ? `${count(a)} kişi` : '')}
+        deleteWarning={(a) => (count(a) ? `${a.name}: ${count(a)} kişi atölyesiz kalır.` : null)}
+        onCreate={(name) => run(() => supabase.from('atolyeler').insert({ name }))}
+        onRename={(a, name) => run(() => supabase.from('atolyeler').update({ name }).eq('id', a.id))}
+        onDelete={(a) => run(() => supabase.from('atolyeler').delete().eq('id', a.id))}
+      />
     </section>
   )
 }
