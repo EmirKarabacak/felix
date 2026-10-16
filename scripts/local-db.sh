@@ -2,6 +2,8 @@
 # Starts a throwaway local Postgres with Felix's migrations applied, for use
 # with scripts/local-stack.ts. Data lives in a temp folder and is lost on stop.
 #   scripts/local-db.sh start | stop
+# FELIX_MIGRATIONS_UNTIL=0005 stops after that migration, to test the app
+# before Emir has run a newer one.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -40,5 +42,8 @@ $$;
 grant usage on schema auth to anon, authenticated, service_role;
 grant usage on schema public to anon, authenticated, service_role;
 SQL
-for f in "$HERE"/../supabase/migrations/*.sql; do $PSQL -f "$f"; done
+for f in "$HERE"/../supabase/migrations/*.sql; do
+  if [ -n "${FELIX_MIGRATIONS_UNTIL:-}" ] && [[ "$(basename "$f")" > "${FELIX_MIGRATIONS_UNTIL}~" ]]; then continue; fi
+  $PSQL -f "$f"
+done
 echo "local db on postgres://postgres@127.0.0.1:$PORT/postgres"

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { supabase, type Profile } from './supabase'
+import { fetchProfiles, supabase, type Profile } from './supabase'
 
 type AuthState =
   | { status: 'loading' }
@@ -32,11 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadProfile = useCallback(async () => {
     if (!userId) return
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, username, panel, meslek_id, active')
-      .eq('id', userId)
-      .maybeSingle()
+    const { data: rows, error } = await fetchProfiles({ id: userId })
+    const data = rows?.[0]
     if (error) {
       setNotice('Bilgileriniz yüklenemedi. Bağlantınızı kontrol edip tekrar giriş yapın.')
       await supabase.auth.signOut()
@@ -48,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut()
       return
     }
-    setProfile(data as Profile)
+    setProfile(data)
   }, [userId])
 
   useEffect(() => {

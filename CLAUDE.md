@@ -40,6 +40,19 @@ their phones and press start / finish / report a problem.
   the database. Deleting a company keeps its projects.
 - Projeler has two views: Liste (cards) and Takvim (projects as bars from
   opening to delivery date, step due dates as dots, line for today).
+- Bölümler (departments): Üretim, Tasarım, Satın alma, Muhasebe, a fixed list
+  because each one gets its own screens. Üretim has atölyeler (workshops,
+  editable list, e.g. Elektrik / Kaynak atölyesi). The panel stays the rank;
+  the bölüm decides which version of the app someone sees. CEO and managers
+  set someone's bölüm. One bölüm per person for now: Emir asked to be reminded
+  later that people may need several.
+- Agreed next, in order: Çizimler (design uploads a PDF to view plus the
+  original AutoCAD/SolidWorks file; originals only for CEO, managers, Tasarım;
+  a worker sees a project's PDF only while assigned to a step on it, with their
+  name printed on it, no download; each upload a new revision), then Talepler
+  ("Sorun bildir → Malzeme eksik" with typed material and quantity goes to Satın
+  alma: needed, ordered, arrived; "Çizim hatalı" goes to Tasarım). Muhasebe is
+  parked; Emir wants only the CEO to see invoices and payments, as two sections.
 - Chat, when built, goes on projects (one conversation per project), visible to
   workers too. The "Sorun bildir" button stays and should also post into the
   project chat.
@@ -80,7 +93,9 @@ SwiftUI's ConcentricRectangle):
   in the Supabase SQL Editor (copy from GitHub, paste, Run). So every migration
   must be safe to run more than once and must also work as one transaction.
   Push the front end so it still works before he has run the new file, and tell
-  him clearly which file to run. He has run 0001 to 0005.
+  him clearly which file to run. He has run 0001 to 0005; 0006_bolumler.sql is new.
+  `src/lib/supabase.ts` `fetchProfiles` shows the pattern for working before a
+  migration has run (fall back, hide the feature).
 - Data loads in `src/lib/workshop.tsx` (one provider, refreshes every 30 s and
   when the app comes back into view).
 
@@ -91,11 +106,12 @@ stand-in (`scripts/local-stack.ts`: real Postgres with the real migrations and
 access rules, plus just enough of Supabase's auth and data API).
 
 ```
-./supabase/tests/run.sh                                 # database access rules (149 checks)
+./supabase/tests/run.sh                                 # database access rules (164 checks)
 scripts/local-up.sh && node scripts/e2e-stage1.mjs      # sign-in, panels, Ekip (30)
 scripts/local-up.sh && node scripts/e2e-stage2.mjs      # projects, steps, workers (47)
 scripts/local-up.sh && node scripts/e2e-companies.mjs   # Firmalar (22)
 scripts/local-up.sh && node scripts/e2e-approval.mjs    # approval, Takvim (32)
+FELIX_MIGRATIONS_UNTIL=0005 scripts/local-up.sh && node scripts/e2e-bolumler.mjs  # bölümler, runs 0006 mid-test (22)
 ```
 
 Run them all before pushing, and check that each one actually printed "ALL ...
@@ -106,7 +122,8 @@ the screenshots, desktop and phone width.
 
 Done: sign-in and panels, Ekip and meslek türleri, Türler (project and step
 types), projects with steps and assigning, start / finish / problems,
-approval, Firmalar, Takvim, keyboard handling on phones, icons.
+approval, Firmalar, Takvim, keyboard handling on phones, icons, bölümler and
+atölyeler (Ekip grouped by bölüm, assign list grouped by workshop).
 
 Agreed but not built yet (stage 3):
 - Chat on each project.

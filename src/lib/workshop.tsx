@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { friendly } from './errors'
-import { supabase, type Meslek, type Profile } from './supabase'
+import { BOLUMLER, BOLUM_LABEL, fetchProfiles, supabase, type Atolye, type Meslek, type Profile } from './supabase'
 
 export type StepStatus = 'waiting' | 'active' | 'problem' | 'review' | 'done'
 
@@ -53,6 +53,9 @@ type Raw = {
   assignees: { step_id: string; user_id: string }[]
   people: Profile[]
   meslekler: Meslek[]
+  atolyeler: Atolye[]
+  /** False until 0006_bolumler.sql has been run: bölümler and atölyeler are then hidden. */
+  bolumReady: boolean
   stepTypes: StepType[]
   projectTypes: NamedItem[]
   projectTypeSteps: ProjectTypeStep[]
@@ -88,7 +91,7 @@ const WorkshopContext = createContext<WorkshopContextValue | null>(null)
 const REFRESH_MS = 30_000
 
 async function load(): Promise<Raw> {
-  const [projects, steps, assignees, people, meslekler, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails] = await Promise.all([
+  const [projects, steps, assignees, people, meslekler, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails, atolyeler] = await Promise.all([
     supabase.from('projects').select('id, code, name, due_date, project_type_id, company_id, created_at').order('created_at'),
     supabase
       .from('project_steps')
@@ -97,22 +100,27 @@ async function load(): Promise<Raw> {
       )
       .order('position'),
     supabase.from('step_assignees').select('step_id, user_id'),
-    supabase.from('profiles').select('id, full_name, username, panel, meslek_id, active').order('full_name'),
+    fetchProfiles(),
     supabase.from('meslek_turleri').select('id, name').order('name'),
     supabase.from('step_types').select('id, name').order('name'),
     supabase.from('project_types').select('id, name').order('name'),
     supabase.from('project_type_steps').select('id, project_type_id, step_type_id, position').order('position'),
     supabase.from('companies').select('id, name').order('name'),
     supabase.from('company_details').select('company_id, contact_name, email, phone, address, notes'),
+    supabase.from('atolyeler').select('id, name').order('name'),
   ])
   const failed = [projects, steps, assignees, people, meslekler, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails].find((r) => r.error)
   if (failed?.error) throw failed.error
+  // The workshop list only exists once 0006_bolumler.sql has run.
+  if (people.bolumReady && atolyeler.error) throw atolyeler.error
   return {
     projects: projects.data as Project[],
     steps: steps.data as Step[],
     assignees: assignees.data as Raw['assignees'],
     people: people.data as Profile[],
     meslekler: meslekler.data as Meslek[],
+    atolyeler: people.bolumReady ? (atolyeler.data as Atolye[]) : [],
+    bolumReady: people.bolumReady,
     stepTypes: stepTypes.data as StepType[],
     projectTypes: projectTypes.data as NamedItem[],
     projectTypeSteps: projectTypeSteps.data as ProjectTypeStep[],
@@ -129,6 +137,7 @@ function index(input: Raw): Workshop {
     ...input,
     people: [...input.people].sort((a, b) => a.full_name.localeCompare(b.full_name, 'tr')),
     meslekler: [...input.meslekler].sort(byName),
+    atolyeler: [...input.atolyeler].sort(byName),
     stepTypes: [...input.stepTypes].sort(byName),
     projectTypes: [...input.projectTypes].sort(byName),
     companies: [...input.companies].sort(byName),
@@ -230,6 +239,25 @@ export function useWorkshop(): WorkshopContextValue {
   const value = useContext(WorkshopContext)
   if (!value) throw new Error('useWorkshop must be used inside WorkshopProvider')
   return value
+}
+
+/**
+ * People split by where they work, for pickers: each Üretim workshop, the rest
+ * of Üretim, the other bölümler, then people with no bölüm. Before 0006 has
+ * run, or when nobody has a bölüm yet, one untitled group.
+ */
+export function groupPeople(data: Workshop, people: Profile[]): { title: string | null; people: Profile[] }[] {
+  if (!data.bolumReady || people.every((p) => !p.bolum)) return [{ title: null, people }]
+  const groups = [
+    ...data.atolyeler.map((a) => ({ title: a.name, people: people.filter((p) => p.bolum === 'uretim' && p.atolye_id === a.id) })),
+    {
+      title: data.atolyeler.length ? 'Üretim (atölye seçilmedi)' : BOLUM_LABEL.uretim,
+      people: people.filter((p) => p.bolum === 'uretim' && !data.atolyeler.some((a) => a.id === p.atolye_id)),
+    },
+    ...BOLUMLER.filter((b) => b !== 'uretim').map((b) => ({ title: BOLUM_LABEL[b], people: people.filter((p) => p.bolum === b) })),
+    { title: 'Bölüm seçilmedi', people: people.filter((p) => !p.bolum) },
+  ]
+  return groups.filter((g) => g.people.length > 0)
 }
 
 // ---- Dates and status, shared by every screen ----

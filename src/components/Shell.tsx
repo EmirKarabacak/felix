@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth, useProfile } from '../lib/auth'
 import { friendly } from '../lib/errors'
-import { PANEL_LABEL, canManage, supabase } from '../lib/supabase'
+import { BOLUM_LABEL, PANEL_LABEL, canManage, supabase } from '../lib/supabase'
 import { MIN_PASSWORD_LENGTH } from '../../shared/username'
 import { Dialog, ErrorNote, Field, Icon, type IconName } from './ui'
 
@@ -93,7 +93,7 @@ function AccountDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog
       title={profile.full_name}
-      subtitle={`${profile.username} · ${PANEL_LABEL[profile.panel]}`}
+      subtitle={[profile.username, PANEL_LABEL[profile.panel], profile.bolum && BOLUM_LABEL[profile.bolum]].filter(Boolean).join(' · ')}
       onClose={onClose}
       footer={
         <button type="button" className="btn btn-danger btn-big press" onClick={() => void signOut()}>
