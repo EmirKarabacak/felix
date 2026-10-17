@@ -1,12 +1,16 @@
 import { useMemo, useState } from 'react'
 import { StatusBadge, StepDialog } from '../components/StepDialog'
+import { TalepList } from '../components/Talepler'
 import { ErrorNote, Spinner } from '../components/ui'
 import { useProfile } from '../lib/auth'
-import { formatDay, useWorkshop, type Step } from '../lib/workshop'
+import { canHandleTalep, formatDay, isOpen, useWorkshop, type Step } from '../lib/workshop'
 
 const RECENT_DAYS = 7
 
-/** The worker's home: the steps assigned to them, most urgent first. */
+/**
+ * The worker's home: requests to handle or reported, then the steps assigned
+ * to them, most urgent first.
+ */
 export function Islerim() {
   const me = useProfile()
   const { data, error } = useWorkshop()
@@ -32,6 +36,20 @@ export function Islerim() {
     ].filter((g) => g.steps.length > 0)
   }, [data, me.id])
 
+  // Open requests this person handles, and the ones they reported (closed ones
+  // stay a week, so the reporter sees "Geldi").
+  const talepler = useMemo(() => {
+    if (!data) return []
+    const since = Date.now() - RECENT_DAYS * 24 * 3600 * 1000
+    return data.talepler
+      .filter((t) =>
+        isOpen(t)
+          ? canHandleTalep(data, me, t) || t.created_by === me.id
+          : t.created_by === me.id && !!t.closed_at && new Date(t.closed_at).getTime() >= since,
+      )
+      .sort((a, b) => Number(isOpen(b)) - Number(isOpen(a)) || b.created_at.localeCompare(a.created_at))
+  }, [data, me])
+
   return (
     <div className="page">
       <div className="page-head">
@@ -49,10 +67,17 @@ export function Islerim() {
         error ? null : (
           <Spinner />
         )
-      ) : groups.length === 0 ? (
+      ) : groups.length === 0 && talepler.length === 0 ? (
         <div className="card empty">Size atanmış bir iş yok.</div>
       ) : (
-        groups.map((g) => (
+        <>
+        {talepler.length ? (
+          <section className="stack" aria-label="Talepler">
+            <h3>Talepler</h3>
+            <TalepList talepler={talepler} where label="Talepler" />
+          </section>
+        ) : null}
+        {groups.map((g) => (
           <section key={g.title} className="stack" aria-label={g.title}>
             <h3>{g.title}</h3>
             <div className="job-list">
@@ -73,7 +98,8 @@ export function Islerim() {
               })}
             </div>
           </section>
-        ))
+        ))}
+        </>
       )}
 
       {openStep ? <StepDialog stepId={openStep} onClose={() => setOpenStep(null)} /> : null}

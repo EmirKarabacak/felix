@@ -33,10 +33,16 @@ end $$;
 insert into auth.users (id) values ('00000000-0000-0000-0000-00000000000e');
 insert into public.profiles (id, full_name, username, panel) values
   ('00000000-0000-0000-0000-00000000000e', 'Worker Two', 'worker2', 'worker');
--- Both workers are Usta here, so finishing is immediate; approval is tested in stage4.
-insert into public.seviyeler (user_id, seviye) values
-  ('00000000-0000-0000-0000-00000000000c', 'usta'),
-  ('00000000-0000-0000-0000-00000000000e', 'usta');
+-- Both workers are Kaynakçı Usta in İmalat and every step is a Kaynakçı step
+-- here, so finishing is immediate; approval is tested in stage4.
+create temp table saved_step_types as select id, uzmanlik_id from public.step_types;
+update public.step_types set uzmanlik_id = (select id from public.uzmanliklar where name = 'Kaynakçı');
+update public.profiles set bolum_id = (select id from public.bolumler where kod = 'imalat')
+where id in ('00000000-0000-0000-0000-00000000000c', '00000000-0000-0000-0000-00000000000e');
+insert into public.kisi_uzmanliklari (user_id, uzmanlik_id, seviye)
+select u.id, z.id, 'usta'
+from (values ('00000000-0000-0000-0000-00000000000c'::uuid), ('00000000-0000-0000-0000-00000000000e'::uuid)) as u (id),
+     public.uzmanliklar z where z.name = 'Kaynakçı';
 
 select pg_temp.expect((select count(*) from public.step_types) = 9, 'starting step types exist');
 select pg_temp.expect(
@@ -154,5 +160,7 @@ delete from public.projects where id = :'project_id';
 select pg_temp.expect((select count(*) from public.project_steps where project_id = :'project_id') = 0, 'deleting a project removes its steps');
 select pg_temp.expect((select count(*) from public.step_events where project_id = :'project_id') = 0, 'and its history');
 
-delete from public.seviyeler;
+delete from public.kisi_uzmanliklari;
+update public.profiles set bolum_id = null;
+update public.step_types st set uzmanlik_id = s.uzmanlik_id from saved_step_types s where s.id = st.id;
 \echo ALL STAGE 2 ACCESS TESTS PASSED

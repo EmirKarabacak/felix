@@ -5,44 +5,41 @@ import { useAuth, useProfile } from '../lib/auth'
 import { friendly } from '../lib/errors'
 import {
   DEFAULT_SEVIYE,
-  PANEL_LABEL,
+  ONAY_KURALI,
+  ROL_LABEL,
   SEVIYELER,
   SEVIYE_LABEL,
+  panelOf,
+  rolLabel,
+  rolOf,
   supabase,
-  type Bolum,
-  type Panel,
   type Profile,
+  type Rol,
   type Seviye,
 } from '../lib/supabase'
 import { groupPeople, useWorkshop, type Workshop } from '../lib/workshop'
 import { MIN_PASSWORD_LENGTH, isValidUsername, normalizeUsername } from '../../shared/username'
 
-const PANEL_OPTIONS: { value: Panel; label: string }[] = [
-  { value: 'worker', label: PANEL_LABEL.worker },
-  { value: 'manager', label: PANEL_LABEL.manager },
-  { value: 'ceo', label: PANEL_LABEL.ceo },
-]
+const ROL_ORDER: Rol[] = ['genel_mudur', 'it', 'manager', 'worker']
 
-const SEVIYE_OPTIONS = SEVIYELER.map((s) => ({ value: s, label: SEVIYE_LABEL[s] }))
-
-const PANEL_ORDER: Record<Panel, number> = { ceo: 0, manager: 1, worker: 2 }
-const SEVIYE_ORDER: Record<Seviye, number> = { usta: 0, kalfa: 1, cirak: 2 }
+/** Uzmanlık id -> level, for the ticked uzmanlıklar of one person. */
+type Levels = Record<string, Seviye>
 
 export function Ekip() {
   const me = useProfile()
   const { reloadProfile } = useAuth()
   const { data, error, reload } = useWorkshop()
+  // Genel Müdür and IT add and remove people; Bölüm Sorumluları only edit.
   const isCeo = me.panel === 'ceo'
   const [editing, setEditing] = useState<Profile | null>(null)
   const [adding, setAdding] = useState(false)
 
-  // One card per bölüm, people without one last. Before 0007 has run, one card for everyone.
+  // One card per bölüm, Genel Müdür and IT first, people without a bölüm last.
   const groups = useMemo(() => {
     if (!data) return null
-    const rank = (p: Profile) => PANEL_ORDER[p.panel] * 10 + SEVIYE_ORDER[data.seviyeOf(p) ?? 'usta']
     const sorted = data.people
       .filter((p) => p.active)
-      .sort((a, b) => rank(a) - rank(b) || a.full_name.localeCompare(b.full_name, 'tr'))
+      .sort((a, b) => ROL_ORDER.indexOf(rolOf(a)) - ROL_ORDER.indexOf(rolOf(b)) || a.full_name.localeCompare(b.full_name, 'tr'))
     return groupPeople(data, sorted)
   }, [data])
 
@@ -57,7 +54,7 @@ export function Ekip() {
         <div>
           <h1>Ekip</h1>
           <div className="sub">
-            {isCeo ? 'Kişi eklemek veya düzenlemek için dokunun.' : 'Kişi eklemeyi ve silmeyi yalnızca CEO yapar.'}
+            {isCeo ? 'Kişi eklemek veya düzenlemek için dokunun.' : 'Kişi eklemeyi ve silmeyi Genel Müdür ve IT yapar.'}
           </div>
         </div>
         {isCeo ? (
@@ -84,27 +81,24 @@ export function Ekip() {
                 </h3>
               ) : null}
               <div className="card people rows">
-                {g.people.map((p) => {
-                  const seviye = data.seviyeOf(p)
-                  return (
-                    <button key={p.id} type="button" className="person press" onClick={() => setEditing(p)}>
-                      <span className="who">
-                        <span className="name">{p.full_name}</span>
-                        <span className="mono"> {p.username}</span>
-                      </span>
-                      <span className="meslek">{data.bolumReady && seviye ? SEVIYE_LABEL[seviye] : ''}</span>
-                      <span className={`badge badge-${p.panel}`}>{PANEL_LABEL[p.panel]}</span>
-                      <span className="go">
-                        <Icon name="chevron" size={18} />
-                      </span>
-                    </button>
-                  )
-                })}
+                {g.people.map((p) => (
+                  <button key={p.id} type="button" className="person press" onClick={() => setEditing(p)}>
+                    <span className="who">
+                      <span className="name">{p.full_name}</span>
+                      <span className="mono"> {p.username}</span>
+                    </span>
+                    <span className="meslek">{personNote(data, p)}</span>
+                    <span className={`badge badge-${p.panel}`}>{rolLabel(p)}</span>
+                    <span className="go">
+                      <Icon name="chevron" size={18} />
+                    </span>
+                  </button>
+                ))}
               </div>
             </section>
           ))}
-          {data.bolumReady ? (
-            <div className="sub">Usta, Kalfa ve Çırak yalnızca CEO ve yöneticilere görünür.</div>
+          {data.ready ? (
+            <div className="sub">Uzmanlık seviyeleri yalnızca Genel Müdür, IT ve Bölüm Sorumlularına görünür.</div>
           ) : null}
         </div>
       )}
@@ -138,61 +132,133 @@ export function Ekip() {
   )
 }
 
-function BolumSelect({
-  id,
-  value,
-  bolumler,
-  onChange,
+/** The small text on a person's row: their uzmanlıklar, or which bölüm they lead. */
+function personNote(data: Workshop, p: Profile): string {
+  if (!data.ready) return ''
+  if (p.panel === 'manager') return p.bolum_id ? 'Sorumlu' : ''
+  if (p.panel === 'worker' && data.bolumKod(p.bolum_id) === 'imalat') return data.uzmanlikText(p.id)
+  return ''
+}
+
+function levelsOf(data: Workshop, personId: string): Levels {
+  return Object.fromEntries(data.uzmanliklarOf(personId).map((u) => [u.uzmanlik_id, u.seviye]))
+}
+
+/**
+ * Who the person is and where they work:
+ * - Genel Müdür and IT: no bölüm.
+ * - Bölüm Sorumlusu: only the bölüm they lead.
+ * - Personel: a bölüm; in İmalat also their uzmanlıklar, each with a level.
+ */
+function PersonFields({
+  data,
+  rol,
+  canChooseRol,
+  bolumId,
+  levels,
+  onRol,
+  onBolum,
+  onLevels,
 }: {
-  id: string
-  value: string
-  bolumler: Bolum[]
-  onChange: (value: string) => void
+  data: Workshop
+  rol: Rol
+  canChooseRol: boolean
+  bolumId: string
+  levels: Levels
+  onRol: (value: Rol) => void
+  onBolum: (value: string) => void
+  onLevels: (value: Levels) => void
 }) {
+  // IT needs 0008; before it, the three older choices remain.
+  const roles = data.ready ? ROL_ORDER : ROL_ORDER.filter((r) => r !== 'it')
+  const inImalat = data.ready && rol === 'worker' && data.bolumKod(bolumId || null) === 'imalat'
   return (
-    <select id={id} className="input" value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">Seçilmedi</option>
-      {bolumler.map((b) => (
-        <option key={b.id} value={b.id}>
-          {b.name}
-        </option>
-      ))}
-    </select>
+    <>
+      {canChooseRol ? (
+        <Segmented
+          label="Rol"
+          value={rol}
+          options={roles.map((r) => ({ value: r, label: ROL_LABEL[r] }))}
+          onChange={onRol}
+          grid={roles.length === 4}
+        />
+      ) : null}
+      {data.bolumReady && (rol === 'manager' || rol === 'worker') ? (
+        <Field
+          label={rol === 'manager' ? 'Sorumlu olduğu bölüm' : 'Bölüm'}
+          hint={
+            data.ready && rol === 'worker' && bolumId && !inImalat
+              ? 'İmalat dışındaki Personelin bitirdiği iş her zaman yönetici onayını bekler.'
+              : undefined
+          }
+        >
+          {(id) => (
+            <select id={id} className="input" value={bolumId} onChange={(e) => onBolum(e.target.value)}>
+              <option value="">Seçilmedi</option>
+              {data.bolumler.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+      ) : null}
+      {inImalat ? <UzmanlikFields data={data} levels={levels} onChange={onLevels} /> : null}
+    </>
   )
 }
 
-/** Bölüm, and the level when the person is Personel. Hidden until 0007 has run. */
-function PlaceFields({
-  data,
-  panel,
-  bolumId,
-  seviye,
-  onBolum,
-  onSeviye,
-}: {
-  data: Workshop
-  panel: Panel
-  bolumId: string
-  seviye: Seviye
-  onBolum: (value: string) => void
-  onSeviye: (value: Seviye) => void
-}) {
-  if (!data.bolumReady) return null
+/** Tick the person's uzmanlıklar; each ticked one gets a level, starting at Kalfa. */
+function UzmanlikFields({ data, levels, onChange }: { data: Workshop; levels: Levels; onChange: (value: Levels) => void }) {
   return (
-    <>
-      <Field label="Bölüm">
-        {(id) => <BolumSelect id={id} value={bolumId} bolumler={data.bolumler} onChange={onBolum} />}
-      </Field>
-      {panel === 'worker' ? (
-        <div>
-          <Segmented label="Seviye" value={seviye} options={SEVIYE_OPTIONS} onChange={onSeviye} />
-          <div className="hint">
-            Usta'nın bitirdiği iş hemen biter; Kalfa ve Çırak'ınki yönetici onayını bekler. Bunu yalnızca CEO ve
-            yöneticiler görür.
-          </div>
+    <div className="field">
+      <div className="field-label">Uzmanlıklar</div>
+      {data.uzmanliklar.length === 0 ? (
+        <div className="sub">Uzmanlık listesi boş. Ayarlar'daki Uzmanlıklar'dan ekleyin.</div>
+      ) : (
+        <div className="card rows checklist uzmanlik-list" role="group" aria-label="Uzmanlıklar">
+          {data.uzmanliklar.map((u) => {
+            const level = levels[u.id]
+            return (
+              <div key={u.id} className="uzmanlik-row">
+                <button
+                  type="button"
+                  className="check-row press"
+                  aria-pressed={!!level}
+                  onClick={() => {
+                    const next = { ...levels }
+                    if (level) delete next[u.id]
+                    else next[u.id] = DEFAULT_SEVIYE
+                    onChange(next)
+                  }}
+                >
+                  <span>{u.name}</span>
+                  {level ? <Icon name="check" /> : null}
+                </button>
+                {level ? (
+                  <div className="segmented" role="group" aria-label={`${u.name} seviyesi`}>
+                    {SEVIYELER.map((sv) => (
+                      <button
+                        key={sv}
+                        type="button"
+                        className="press"
+                        aria-pressed={sv === level}
+                        onClick={() => onChange({ ...levels, [u.id]: sv })}
+                      >
+                        {SEVIYE_LABEL[sv]}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
         </div>
-      ) : null}
-    </>
+      )}
+      <div className="hint">{ONAY_KURALI}</div>
+      <div className="hint">Seviyeleri yalnızca Genel Müdür, IT ve Bölüm Sorumluları görür.</div>
+    </div>
   )
 }
 
@@ -201,9 +267,9 @@ function AddPersonDialog({ data, onClose, onSaved }: { data: Workshop; onClose: 
   const [username, setUsername] = useState('')
   const [usernameTouched, setUsernameTouched] = useState(false)
   const [password, setPassword] = useState('')
-  const [panel, setPanel] = useState<Panel>('worker')
+  const [rol, setRol] = useState<Rol>('worker')
   const [bolumId, setBolumId] = useState('')
-  const [seviye, setSeviye] = useState<Seviye>(DEFAULT_SEVIYE)
+  const [levels, setLevels] = useState<Levels>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -217,13 +283,19 @@ function AddPersonDialog({ data, onClose, onSaved }: { data: Workshop; onClose: 
     setBusy(true)
     setError(null)
     try {
+      const { panel, unvan } = panelOf(rol)
+      const leadsOrWorks = rol === 'manager' || rol === 'worker'
       await callApi('/api/users', 'POST', {
         full_name: fullName,
         username,
         password,
         panel,
-        // Sent only once 0007 has run; an older database has no place for them.
-        ...(data.bolumReady ? { bolum_id: bolumId || null, seviye: panel === 'worker' ? seviye : null } : {}),
+        // Sent only once the matching update has run; an older database has no place for them.
+        ...(data.ready ? { unvan } : {}),
+        ...(data.bolumReady ? { bolum_id: leadsOrWorks ? bolumId || null : null } : {}),
+        ...(data.ready && rol === 'worker' && data.bolumKod(bolumId || null) === 'imalat'
+          ? { uzmanliklar: Object.entries(levels).map(([uzmanlik_id, seviye]) => ({ uzmanlik_id, seviye })) }
+          : {}),
       })
       onSaved()
     } catch (err) {
@@ -285,14 +357,15 @@ function AddPersonDialog({ data, onClose, onSaved }: { data: Workshop; onClose: 
             />
           )}
         </Field>
-        <Segmented label="Panel" value={panel} options={PANEL_OPTIONS} onChange={setPanel} />
-        <PlaceFields
+        <PersonFields
           data={data}
-          panel={panel}
+          rol={rol}
+          canChooseRol
           bolumId={bolumId}
-          seviye={seviye}
+          levels={levels}
+          onRol={setRol}
           onBolum={setBolumId}
-          onSeviye={setSeviye}
+          onLevels={setLevels}
         />
         <ErrorNote>{error}</ErrorNote>
         <button type="submit" className="btn btn-primary btn-big press" disabled={busy}>
@@ -320,9 +393,9 @@ function EditPersonDialog({
 }) {
   const [fullName, setFullName] = useState(person.full_name)
   const [username, setUsername] = useState(person.username)
-  const [panel, setPanel] = useState<Panel>(person.panel)
+  const [rol, setRol] = useState<Rol>(rolOf(person))
   const [bolumId, setBolumId] = useState(person.bolum_id ?? '')
-  const [seviye, setSeviye] = useState<Seviye>(data.seviyeOf(person) ?? DEFAULT_SEVIYE)
+  const [levels, setLevels] = useState<Levels>(() => levelsOf(data, person.id))
   const [newPassword, setNewPassword] = useState('')
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -349,13 +422,31 @@ function EditPersonDialog({
     }
     void guard(async () => {
       const changes: Record<string, unknown> = { full_name: fullName.trim() }
-      if (data.bolumReady) changes.bolum_id = bolumId || null
-      if (isCeo) changes.panel = panel
+      // Genel Müdür and IT belong to no bölüm.
+      if (data.bolumReady) changes.bolum_id = rol === 'manager' || rol === 'worker' ? bolumId || null : null
+      if (isCeo) {
+        const { panel, unvan } = panelOf(rol)
+        changes.panel = panel
+        if (data.ready) changes.unvan = unvan
+      }
       const { error } = await supabase.from('profiles').update(changes).eq('id', person.id)
       if (error) throw error
-      if (data.bolumReady && panel === 'worker' && seviye !== data.seviyeOf(person)) {
-        const saved = await supabase.from('seviyeler').upsert({ user_id: person.id, seviye }, { onConflict: 'user_id' })
-        if (saved.error) throw saved.error
+      // Levels are kept only for Personel in İmalat. Moving someone out of
+      // İmalat leaves them stored but unused, in case they come back.
+      if (data.ready && rol === 'worker' && data.bolumKod(bolumId || null) === 'imalat') {
+        const before = levelsOf(data, person.id)
+        const removed = Object.keys(before).filter((id) => !levels[id])
+        if (removed.length) {
+          const gone = await supabase.from('kisi_uzmanliklari').delete().eq('user_id', person.id).in('uzmanlik_id', removed)
+          if (gone.error) throw gone.error
+        }
+        const rows = Object.entries(levels)
+          .filter(([id, seviye]) => before[id] !== seviye)
+          .map(([uzmanlik_id, seviye]) => ({ user_id: person.id, uzmanlik_id, seviye }))
+        if (rows.length) {
+          const saved = await supabase.from('kisi_uzmanliklari').upsert(rows, { onConflict: 'user_id,uzmanlik_id' })
+          if (saved.error) throw saved.error
+        }
       }
       // The username is also the sign-in, so it changes on the server.
       const account: Record<string, string> = {}
@@ -403,14 +494,15 @@ function EditPersonDialog({
             )}
           </Field>
         ) : null}
-        {isCeo ? <Segmented label="Panel" value={panel} options={PANEL_OPTIONS} onChange={setPanel} /> : null}
-        <PlaceFields
+        <PersonFields
           data={data}
-          panel={panel}
+          rol={rol}
+          canChooseRol={isCeo}
           bolumId={bolumId}
-          seviye={seviye}
+          levels={levels}
+          onRol={setRol}
           onBolum={setBolumId}
-          onSeviye={setSeviye}
+          onLevels={setLevels}
         />
         {isCeo ? (
           <Field

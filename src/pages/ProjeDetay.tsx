@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { FileSection } from '../components/Dosyalar'
 import { StatusBadge, StepDialog } from '../components/StepDialog'
 import { Dialog, ErrorNote, Field, Icon, Spinner } from '../components/ui'
 import { useProfile } from '../lib/auth'
 import { canManage, supabase } from '../lib/supabase'
-import { formatDay, useWorkshop, type Project, type Workshop } from '../lib/workshop'
+import { canManageFiles, formatDay, isOpen, useWorkshop, type Project, type Workshop } from '../lib/workshop'
 import { ProgressStrip, progressText } from './Projeler'
 
 export function ProjeDetay() {
@@ -46,6 +47,9 @@ export function ProjeDetay() {
   const company = data.company(project.company_id)
   const contact = company ? data.detailsOf(company.id) : undefined
   const hasContact = !!contact && [contact.contact_name, contact.phone, contact.email, contact.address, contact.notes].some(Boolean)
+  const files = data.dosyalarOfProject(project.id)
+  const fileManager = canManageFiles(data, me)
+  const anaFiles = files.filter((f) => f.ana)
 
   return (
     <div className="page">
@@ -127,6 +131,7 @@ export function ProjeDetay() {
         <section className="card steps rows" aria-label="Adımlar">
           {steps.map((s, i) => {
             const who = data.assigneesOf(s.id)
+            const openTalep = data.taleplerOfStep(s.id).find(isOpen)
             return (
               <button key={s.id} type="button" className="step press" onClick={() => setOpenStep(s.id)}>
                 <span className="mono no">{i + 1}</span>
@@ -144,6 +149,11 @@ export function ProjeDetay() {
                 </span>
                 <span className="step-due sub">{formatDay(s.due_date)}</span>
                 <span className="step-status">
+                  {openTalep ? (
+                    <span className="badge status-problem talep-mark">
+                      {openTalep.kind === 'malzeme' ? 'Malzeme talebi' : 'Çizim talebi'}
+                    </span>
+                  ) : null}
                   <StatusBadge step={s} />
                 </span>
                 <span className="go">
@@ -154,6 +164,30 @@ export function ProjeDetay() {
           })}
         </section>
       )}
+
+      {data.ready ? (
+        <div className="project-files">
+          <FileSection
+            title="Ana doküman"
+            heading
+            projectId={project.id}
+            ana
+            files={anaFiles}
+            canAdd={fileManager}
+            addLabel={anaFiles.some((f) => !f.eski_at) ? 'Yenisini yükle' : 'Yükle'}
+            empty="Henüz ana doküman yok."
+          />
+          <FileSection
+            title="Proje dosyaları"
+            heading
+            projectId={project.id}
+            files={files.filter((f) => !f.ana)}
+            canAdd={fileManager}
+            addLabel="Dosya ekle"
+            empty="Sertifika gibi başka dosyalar burada durur."
+          />
+        </div>
+      ) : null}
 
       {openStep ? <StepDialog stepId={openStep} onClose={() => setOpenStep(null)} /> : null}
       {adding ? <AddStepDialog project={project} data={data} onClose={() => setAdding(false)} /> : null}

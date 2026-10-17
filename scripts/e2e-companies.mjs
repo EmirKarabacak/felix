@@ -43,7 +43,7 @@ await page.getByLabel('Kurulum kodu').fill('kurulum')
 await page.getByLabel('Ad soyad').fill('Emir Karabacak')
 await page.getByLabel('Kullanıcı adı').fill('emir')
 await page.getByLabel('Şifre').fill('emir1234')
-await page.getByRole('button', { name: 'CEO hesabını oluştur' }).click()
+await page.getByRole('button', { name: 'Genel Müdür hesabını oluştur' }).click()
 await page.getByRole('heading', { name: 'Projeler' }).waitFor()
 await page.evaluate(async () => {
   const key = Object.keys(localStorage).find((k) => k.endsWith('-auth-token'))
@@ -54,7 +54,7 @@ await page.evaluate(async () => {
     body: JSON.stringify({ full_name: 'Ahmet Yılmaz', username: 'ahmet', password: 'ahmet123', panel: 'worker' }),
   })
 })
-expect((await page.locator('.topnav a').allInnerTexts()).join('|') === 'Projeler|Ekip|Ayarlar', 'the CEO gets Projeler, Ekip and Ayarlar')
+expect((await page.locator('.topnav a').allInnerTexts()).join('|') === 'Projeler|Ekip|Ayarlar', 'the Genel Müdür gets Projeler, Ekip and Ayarlar')
 
 // ---- create, duplicate, edit ----
 await openList(page, 'Firmalar')

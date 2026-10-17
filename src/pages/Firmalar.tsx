@@ -39,7 +39,7 @@ export function Firmalar() {
       <div className="page-head">
         <div>
           <h1>Firmalar</h1>
-          <div className="sub">Sipariş veren firmalar. İletişim bilgilerini yalnızca CEO ve yöneticiler görür.</div>
+          <div className="sub">Sipariş veren firmalar. İletişim bilgilerini yalnızca Genel Müdür, IT ve Bölüm Sorumluları görür.</div>
         </div>
         <button type="button" className="btn btn-primary press" onClick={() => setEditing('new')}>
           <Icon name="plus" size={18} />

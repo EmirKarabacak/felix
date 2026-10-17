@@ -5,7 +5,7 @@ import { friendly } from '../lib/errors'
 import { supabase } from '../lib/supabase'
 import { MIN_PASSWORD_LENGTH, isValidUsername, normalizeUsername, usernameToEmail } from '../../shared/username'
 
-/** First run only: creates the CEO account. Disappears once anyone exists. */
+/** First run only: creates the Genel Müdür account. Disappears once anyone exists. */
 export function Setup({ onDone }: { onDone: () => void }) {
   const [code, setCode] = useState('')
   const [fullName, setFullName] = useState('')
@@ -41,7 +41,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
             <Icon name="drop" size={38} />
           </div>
           <h1>Felix'i kur</h1>
-          <div className="sub">İlk hesap CEO hesabıdır. Diğer herkesi bu hesapla eklersiniz.</div>
+          <div className="sub">İlk hesap Genel Müdür hesabıdır. Diğer herkesi bu hesapla eklersiniz.</div>
         </div>
         <form onSubmit={submit}>
           <Field label="Kurulum kodu" hint="Yayın ayarlarında FELIX_SETUP_CODE olarak belirlediğiniz ifade.">
@@ -100,7 +100,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
           </Field>
           <ErrorNote>{error}</ErrorNote>
           <button type="submit" className="btn btn-primary btn-big press" disabled={busy}>
-            {busy ? 'Oluşturuluyor…' : 'CEO hesabını oluştur'}
+            {busy ? 'Oluşturuluyor…' : 'Genel Müdür hesabını oluştur'}
           </button>
         </form>
       </div>

@@ -14,7 +14,7 @@ import { Turler } from './pages/Turler'
 import { WorkshopProvider } from './lib/workshop'
 import { Setup } from './pages/Setup'
 import { Ayarlar } from './pages/Ayarlar'
-import { Bolumler } from './pages/Bolumler'
+import { Uzmanliklar } from './pages/Uzmanliklar'
 
 export function App() {
   const { state } = useAuth()
@@ -52,14 +52,14 @@ export function App() {
           <Route path="/projeler" element={<Projeler />} />
           <Route path="/projeler/:id" element={<ProjeDetay />} />
           <Route path="/ayarlar" element={<Ayarlar />} />
-          {/* The CEO hands out work rather than receiving it, so has no İşlerim. */}
+          {/* Genel Müdür and IT hand out work rather than receiving it, so have no İşlerim. */}
           {panel !== 'ceo' ? <Route path="/islerim" element={<Islerim />} /> : null}
           {manages ? (
             <>
               <Route path="/ekip" element={<Ekip />} />
               <Route path="/firmalar" element={<Firmalar />} />
               <Route path="/turler" element={<Turler />} />
-              <Route path="/bolumler" element={<Bolumler />} />
+              <Route path="/uzmanliklar" element={<Uzmanliklar />} />
             </>
           ) : null}
           <Route path="*" element={<Navigate to={manages ? '/projeler' : '/islerim'} replace />} />
