@@ -39,6 +39,11 @@ async function signIn(p, username, password) {
 }
 const nav = (p, label) => p.locator('.topnav a, .tabbar a').filter({ hasText: label }).locator('visible=true').first().click()
 const dialog = (p) => p.getByRole('dialog')
+/** Firmalar, Türler and Bölümler are reached through Ayarlar. */
+async function openList(p, label) {
+  await nav(p, 'Ayarlar')
+  await p.locator('a.link-row', { hasText: label }).click()
+}
 const stepRow = (p, name) => p.locator('button.step', { hasText: name })
 const closeDialog = async (p) => {
   await dialog(p).getByRole('button', { name: 'Kapat' }).click()
@@ -61,15 +66,15 @@ const made = await page.evaluate(async () => {
     fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) }).then((r) => r.status)
   return [
     await add({ full_name: 'Selim Ateş', username: 'selim', password: 'selim123', panel: 'manager' }),
-    await add({ full_name: 'Ahmet Yılmaz', username: 'ahmet', password: 'ahmet123', panel: 'worker' }),
-    await add({ full_name: 'Murat Kaya', username: 'murat', password: 'murat123', panel: 'worker' }),
+    await add({ full_name: 'Ahmet Yılmaz', username: 'ahmet', password: 'ahmet123', panel: 'worker', seviye: 'usta' }),
+    await add({ full_name: 'Murat Kaya', username: 'murat', password: 'murat123', panel: 'worker', seviye: 'usta' }),
   ].join(',')
 })
 expect(made === '200,200,200', 'test people created')
 expect(await page.getByText('Aktif proje yok. "Yeni proje" ile başlayın.').count() === 1, 'an empty workshop explains how to start')
 
 // ---- Türler ----
-await nav(page, 'Türler')
+await openList(page, 'Türler')
 await page.getByRole('heading', { name: 'Türler', exact: true }).waitFor()
 await page.locator('.type-row', { hasText: 'RO Ünitesi' }).waitFor()
 expect(await page.locator('.type-row').count() === 4, 'four starting project types are listed')
@@ -302,7 +307,14 @@ watch(selim, 'selim')
 await selim.goto(BASE)
 await signIn(selim, 'selim', 'selim123')
 await selim.getByRole('button', { name: 'Yeni proje' }).waitFor()
-expect((await selim.locator('.topnav a').allInnerTexts()).join('|') === 'İşlerim|Projeler|Firmalar|Türler|Ekip', 'a manager gets the same sections as the CEO')
+expect((await selim.locator('.topnav a').allInnerTexts()).join('|') === 'İşlerim|Projeler|Ekip|Ayarlar', 'a manager gets İşlerim, Projeler, Ekip and Ayarlar')
+await nav(selim, 'Ayarlar')
+await selim.locator('a.link-row').first().waitFor()
+expect((await selim.locator('a.link-row .link-label').allInnerTexts()).join('|') === 'Firmalar|Türler|Bölümler', 'a manager finds Firmalar, Türler and Bölümler in Ayarlar')
+await selim.locator('a.link-row', { hasText: 'Türler' }).click()
+await selim.locator('.type-row', { hasText: 'RO Ünitesi' }).waitFor()
+await selim.getByRole('link', { name: 'Ayarlar' }).first().waitFor()
+ok('a manager can open Türler from Ayarlar')
 
 await browser.close()
 if (problems.length) {

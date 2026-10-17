@@ -241,6 +241,13 @@ async function rest(req: IncomingMessage, res: ServerResponse, path: string, que
       const keys = Object.keys(list[0] ?? {})
       const tuples = list.map((row) => `(${keys.map((k) => { params.push(row[k]); return `$${params.length}` }).join(', ')})`)
       sql = `insert into ${table} (${keys.map(ident).join(', ')}) values ${tuples.join(', ')}`
+      // upsert(): supabase-js asks for this with a Prefer header and on_conflict.
+      const conflict = query.get('on_conflict')
+      if (prefer.includes('resolution=merge-duplicates') && conflict) {
+        const target = conflict.split(',').map((c) => ident(c.trim()))
+        const rest = keys.filter((k) => !conflict.split(',').includes(k))
+        sql += ` on conflict (${target.join(', ')}) do ${rest.length ? `update set ${rest.map((k) => `${ident(k)} = excluded.${ident(k)}`).join(', ')}` : 'nothing'}`
+      }
     } else if (req.method === 'PATCH') {
       const keys = Object.keys(body)
       keys.forEach((k) => params.push(body[k]))

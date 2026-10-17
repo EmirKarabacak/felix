@@ -57,37 +57,40 @@ export type Profile = {
   full_name: string
   username: string
   panel: Panel
-  meslek_id: string | null
   active: boolean
-  /** Null for people without a bölüm, and for everyone until 0006_bolumler.sql has run. */
-  bolum: Bolum | null
-  atolye_id: string | null
+  /** Null for people without a bölüm, and for everyone until 0007 has been run. */
+  bolum_id: string | null
 }
 
-export type Meslek = { id: string; name: string }
-export type Atolye = { id: string; name: string }
+/** A bölüm (department or workshop): a list the workshop edits itself. */
+export type Bolum = { id: string; name: string }
 
-/** The department someone works in. It decides which version of the app they get. */
-export type Bolum = 'uretim' | 'tasarim' | 'satinalma' | 'muhasebe'
+/**
+ * How experienced a Personel is. Seen only by the CEO and managers. Kalfa and
+ * Çırak work the same way (their finish waits for approval); an Usta's does not.
+ */
+export type Seviye = 'usta' | 'kalfa' | 'cirak'
 
-export const BOLUMLER: Bolum[] = ['uretim', 'tasarim', 'satinalma', 'muhasebe']
+export const SEVIYELER: Seviye[] = ['usta', 'kalfa', 'cirak']
 
-export const BOLUM_LABEL: Record<Bolum, string> = {
-  uretim: 'Üretim',
-  tasarim: 'Tasarım',
-  satinalma: 'Satın alma',
-  muhasebe: 'Muhasebe',
+export const SEVIYE_LABEL: Record<Seviye, string> = {
+  usta: 'Usta',
+  kalfa: 'Kalfa',
+  cirak: 'Çırak',
 }
 
-const PROFILE_COLUMNS = 'id, full_name, username, panel, meslek_id, active'
+/** A Personel without a stored level counts as Kalfa, as in the database. */
+export const DEFAULT_SEVIYE: Seviye = 'kalfa'
+
+const PROFILE_COLUMNS = 'id, full_name, username, panel, active'
 
 const isMissingColumn = (error: { code?: string; message?: string } | null) =>
   !!error && (error.code === '42703' || /column .* does not exist/i.test(error.message ?? ''))
 
 /**
- * Reads people. Until 0006_bolumler.sql has been run the bölüm columns do not
- * exist; the app then reads without them and reports bolumReady: false, so it
- * keeps working and simply hides bölümler and atölyeler.
+ * Reads people. Until 0007 has been run the bölüm column does not exist; the
+ * app then reads without it and reports bolumReady: false, so it keeps working
+ * and simply hides bölümler and levels.
  */
 export async function fetchProfiles(only: { id?: string; active?: boolean } = {}) {
   const query = (columns: string) => {
@@ -96,23 +99,19 @@ export async function fetchProfiles(only: { id?: string; active?: boolean } = {}
     if (only.active) q = q.eq('active', true)
     return q.order('full_name')
   }
-  const full = await query(`${PROFILE_COLUMNS}, bolum, atolye_id`)
+  const full = await query(`${PROFILE_COLUMNS}, bolum_id`)
   if (!isMissingColumn(full.error)) {
     return { data: full.data as unknown as Profile[] | null, error: full.error, bolumReady: true }
   }
   const basic = await query(PROFILE_COLUMNS)
-  const data = (basic.data as unknown as Omit<Profile, 'bolum' | 'atolye_id'>[] | null)?.map((p) => ({
-    ...p,
-    bolum: null,
-    atolye_id: null,
-  }))
+  const data = (basic.data as unknown as Omit<Profile, 'bolum_id'>[] | null)?.map((p) => ({ ...p, bolum_id: null }))
   return { data: data ?? null, error: basic.error, bolumReady: false }
 }
 
 export const PANEL_LABEL: Record<Panel, string> = {
   ceo: 'CEO',
   manager: 'Yönetici',
-  worker: 'İşçi',
+  worker: 'Personel',
 }
 
 /** CEO and managers run the workshop; workers see it read-only. */

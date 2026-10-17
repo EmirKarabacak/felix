@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { BackToSettings } from '../components/Shell'
 import { EditableList } from '../components/EditableList'
 import { ErrorNote, Icon, Spinner } from '../components/ui'
 import { supabase } from '../lib/supabase'
@@ -11,6 +12,7 @@ export function Turler() {
   if (!data) {
     return (
       <div className="page">
+        <BackToSettings />
         <div className="page-head">
           <h1>Türler</h1>
         </div>
@@ -21,6 +23,7 @@ export function Turler() {
 
   return (
     <div className="page">
+      <BackToSettings />
       <div className="page-head">
         <div>
           <h1>Türler</h1>

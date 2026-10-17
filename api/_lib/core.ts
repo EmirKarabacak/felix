@@ -16,7 +16,7 @@ export type Call = { method: string; body: unknown; authorization: string | unde
 
 type Panel = 'ceo' | 'manager' | 'worker'
 const PANELS: Panel[] = ['ceo', 'manager', 'worker']
-const BOLUMLER = ['uretim', 'tasarim', 'satinalma', 'muhasebe']
+const SEVIYELER = ['usta', 'kalfa', 'cirak']
 
 const fail = (status: number, error: string): Reply => ({ status, body: { error } })
 const ok = (body: Record<string, unknown> = {}): Reply => ({ status: 200, body: { ok: true, ...body } })
@@ -57,10 +57,9 @@ async function createPerson(
   db: SupabaseClient,
   person: NewPerson,
   panel: Panel,
-  meslekId: string | null,
-  // Bölüm and workshop (0006). Only sent once that migration has run, so they
-  // are left out of the insert when empty.
-  place: { bolum: string | null; atolyeId: string | null } = { bolum: null, atolyeId: null },
+  // Bölüm and level (0007). The browser sends them only once that migration
+  // has run, so they are left out when absent.
+  place: { bolumId?: string | null; seviye?: string | null } = {},
 ): Promise<Reply> {
   const taken = await db.from('profiles').select('id').eq('username', person.username).maybeSingle()
   if (taken.error) return fail(500, taken.error.message)
@@ -81,13 +80,20 @@ async function createPerson(
     full_name: person.fullName,
     username: person.username,
     panel,
-    meslek_id: meslekId,
-    ...(place.bolum ? { bolum: place.bolum, atolye_id: place.bolum === 'uretim' ? place.atolyeId : null } : {}),
+    ...(place.bolumId ? { bolum_id: place.bolumId } : {}),
   })
   if (inserted.error) {
     // Do not leave a sign-in without a profile behind.
     await db.auth.admin.deleteUser(id)
     return fail(400, inserted.error.message)
+  }
+  if (panel === 'worker' && place.seviye) {
+    const level = await db.from('seviyeler').insert({ user_id: id, seviye: place.seviye })
+    if (level.error) {
+      // Removing the sign-in removes the profile with it.
+      await db.auth.admin.deleteUser(id)
+      return fail(400, level.error.message)
+    }
   }
   return ok({ id })
 }
@@ -131,10 +137,10 @@ export async function handleSetup(call: Call, db: SupabaseClient = adminClient()
 
   const person = readNewPerson(input)
   if (typeof person === 'string') return fail(400, person)
-  return createPerson(db, person, 'ceo', null)
+  return createPerson(db, person, 'ceo')
 }
 
-/** /api/users: POST adds a person, PATCH sets a new password, DELETE removes a person. CEO only. */
+/** /api/users: POST adds a person, PATCH changes a username or password, DELETE removes a person. CEO only. */
 export async function handleUsers(call: Call, db: SupabaseClient = adminClient()): Promise<Reply> {
   const caller = await requireCeo(db, call.authorization)
   if (typeof caller !== 'string') return caller
@@ -144,25 +150,46 @@ export async function handleUsers(call: Call, db: SupabaseClient = adminClient()
     const person = readNewPerson(input)
     if (typeof person === 'string') return fail(400, person)
     const panel = PANELS.includes(input.panel as Panel) ? (input.panel as Panel) : 'worker'
-    const meslekId = text(input.meslek_id) || null
-    const bolum = BOLUMLER.includes(text(input.bolum)) ? text(input.bolum) : null
-    const atolyeId = text(input.atolye_id) || null
-    return createPerson(db, person, panel, meslekId, { bolum, atolyeId })
+    const bolumId = text(input.bolum_id) || null
+    const seviye = SEVIYELER.includes(text(input.seviye)) ? text(input.seviye) : null
+    return createPerson(db, person, panel, { bolumId, seviye })
   }
 
   const id = text(input.id)
   if (!id) return fail(400, 'Kişi seçilmedi.')
-  const target = await db.from('profiles').select('id, active').eq('id', id).maybeSingle()
+  const target = await db.from('profiles').select('id, active, username').eq('id', id).maybeSingle()
   if (target.error) return fail(500, target.error.message)
   if (!target.data?.active) return fail(404, 'Kişi bulunamadı.')
 
   if (call.method === 'PATCH') {
     const password = typeof input.password === 'string' ? input.password : ''
-    if (password.length < MIN_PASSWORD_LENGTH) {
+    const username = input.username === undefined ? '' : normalizeUsername(text(input.username))
+    if (!password && !username) return fail(400, 'Değiştirilecek bir şey yok.')
+    if (password && password.length < MIN_PASSWORD_LENGTH) {
       return fail(400, `Şifre en az ${MIN_PASSWORD_LENGTH} karakter olmalı.`)
     }
-    const updated = await db.auth.admin.updateUserById(id, { password })
-    if (updated.error) return fail(400, updated.error.message)
+    if (input.username !== undefined && !isValidUsername(username)) {
+      return fail(400, 'Kullanıcı adı en az 3 karakter olmalı; harf, rakam, nokta, tire kullanılabilir.')
+    }
+
+    if (username && username !== target.data.username) {
+      const taken = await db.from('profiles').select('id').eq('username', username).maybeSingle()
+      if (taken.error) return fail(500, taken.error.message)
+      if (taken.data) return fail(409, 'Bu kullanıcı adı zaten kullanılıyor.')
+      // The username is the sign-in, so the account's e-mail changes with it.
+      const moved = await db.auth.admin.updateUserById(id, { email: usernameToEmail(username), email_confirm: true })
+      if (moved.error) return fail(400, moved.error.message)
+      const renamed = await db.from('profiles').update({ username }).eq('id', id)
+      if (renamed.error) {
+        await db.auth.admin.updateUserById(id, { email: usernameToEmail(target.data.username), email_confirm: true })
+        return fail(400, renamed.error.message)
+      }
+    }
+
+    if (password) {
+      const updated = await db.auth.admin.updateUserById(id, { password })
+      if (updated.error) return fail(400, updated.error.message)
+    }
     return ok()
   }
 

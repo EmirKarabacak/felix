@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useProfile } from '../lib/auth'
-import { canManage, supabase } from '../lib/supabase'
+import { SEVIYE_LABEL, canManage, supabase, type Profile } from '../lib/supabase'
 import {
   PROBLEM_REASONS,
   SHOWN_LABEL,
@@ -12,7 +12,7 @@ import {
   useWorkshop,
   type Step,
 } from '../lib/workshop'
-import { Dialog, ErrorNote, Field, Icon, Switch } from './ui'
+import { Dialog, ErrorNote, Field, Icon } from './ui'
 
 export function StatusBadge({ step }: { step: Pick<Step, 'due_date' | 'status'> }) {
   const shown = shownStatus(step)
@@ -91,13 +91,16 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
   }
 
   const subtitle = [project?.code, project?.name].filter(Boolean).join(' · ')
-  // A worker's finish on such a step goes to a manager first.
-  const handsIn = step.needs_approval && !manages
+  // Only the CEO and managers see this list, and only they can read levels.
+  const seviyeText = (p: Profile) => {
+    const seviye = data.seviyeOf(p)
+    return data.bolumReady && seviye ? SEVIYE_LABEL[seviye] : ''
+  }
 
   if (rejecting) {
     return (
       <Dialog title="Geri gönder" subtitle={step.name} onClose={() => setRejecting(false)}>
-        <Field label="Neden geri gönderiyorsunuz?" hint="İşçi bu notu görür. Örnek: neyin yeniden yapılması gerekiyor.">
+        <Field label="Neden geri gönderiyorsunuz?" hint="İşi yapan kişi bu notu görür. Örnek: neyin yeniden yapılması gerekiyor.">
           {(id) => (
             <textarea
               id={id}
@@ -124,7 +127,7 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
             )
           }
         >
-          {busy ? 'Gönderiliyor…' : 'İşçiye geri gönder'}
+          {busy ? 'Gönderiliyor…' : 'Geri gönder'}
         </button>
       </Dialog>
     )
@@ -181,15 +184,6 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
         </div>
         {manages ? (
           <label className="fact">
-            <span>Onay gerekir</span>
-            <Switch
-              checked={step.needs_approval}
-              onChange={(next) => run(() => supabase.from('project_steps').update({ needs_approval: next }).eq('id', step.id))}
-            />
-          </label>
-        ) : null}
-        {manages ? (
-          <label className="fact">
             <span>Bitiş tarihi</span>
             <input
               type="date"
@@ -237,7 +231,7 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
               disabled={busy}
               onClick={() => void act('finish')}
             >
-              {handsIn ? 'Bitir ve onaya gönder' : 'İşi bitir'}
+              İşi bitir
             </button>
           ) : null}
           {step.status === 'problem' ? (
@@ -291,7 +285,7 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
                     >
                       <span>
                         {p.full_name}
-                        <span className="sub"> {data.meslekler.find((m) => m.id === p.meslek_id)?.name ?? ''}</span>
+                        <span className="sub"> {seviyeText(p)}</span>
                       </span>
                       {on ? <Icon name="check" /> : null}
                     </button>

@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { BackToSettings } from '../components/Shell'
 import { Link } from 'react-router-dom'
 import { Dialog, ErrorNote, Field, Icon, Spinner } from '../components/ui'
 import { supabase } from '../lib/supabase'
@@ -23,6 +24,7 @@ export function Firmalar() {
   if (!data) {
     return (
       <div className="page">
+        <BackToSettings />
         <div className="page-head">
           <h1>Firmalar</h1>
         </div>
@@ -33,6 +35,7 @@ export function Firmalar() {
 
   return (
     <div className="page">
+      <BackToSettings />
       <div className="page-head">
         <div>
           <h1>Firmalar</h1>

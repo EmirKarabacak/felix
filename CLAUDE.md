@@ -20,38 +20,53 @@ their phones and press start / finish / report a problem.
 ## Decisions already made (do not reopen without asking Emir)
 
 - Three panels. CEO: everything. Yönetici (manager): same as CEO except adding
-  or removing people. İşçi (worker): own jobs plus every project read-only.
+  or removing people. Personel (worker; "İşçi" was felt to be rude): own jobs
+  plus every project read-only. Tabs: CEO Projeler / Ekip / Ayarlar; managers
+  İşlerim / Projeler / Ekip / Ayarlar; Personel İşlerim / Projeler / Ayarlar.
+- Hidden levels for Personel: Usta, Kalfa, Çırak (table `seviyeler`, a missing
+  row counts as Kalfa). Only the CEO and managers see them, enforced in the
+  database; Personel never see anyone's level, not even their own. Emir found
+  visible titles rude, so they stay hidden. Meslek türleri were removed.
+- Only the CEO changes usernames (anyone's, including their own); done through
+  `PATCH /api/users`, which also moves the sign-in e-mail.
+- Ayarlar (gear tab) for everyone: account, password, Beni hatırla, home-screen
+  guide, sign out. CEO and managers also find the lists there: Firmalar,
+  Türler, Bölümler.
 - Accounts are created by the CEO only, with username + password (no e-mail
   needed). Login form has "Beni hatırla" (on by default).
 - Removing a person deactivates them (name stays on past work), frees the
   username, and takes them off unfinished steps. There must always be one CEO.
 - Project types fill a new project's steps; steps can be added, removed and
-  reordered afterwards. Step types, project types and meslek türleri are lists
+  reordered afterwards. Step types, project types and bölümler are lists
   the CEO and managers edit in the app.
 - A step can have several people. Any step can be started at any time (no
   enforced order). One assignee pressing finish finishes it for everyone.
-- Approval: chosen per step when the project is created ("Onay gerekir" switches
-  in the new-project form), changeable on a single step later. A worker's
-  finish then waits ("Onay bekliyor") until a manager approves or sends it back
-  with a required note. A manager's own finish needs no approval. The finish
-  time is the worker's hand-in time.
+- Approval is by level only (0007; the old per-step "Onay gerekir" switches are
+  gone, `steps.needs_approval` is no longer read). An Usta's finish is final;
+  a Kalfa's or Çırak's finish waits ("Onay bekliyor") until a manager approves
+  or sends it back with a required note. The CEO's and managers' own finish
+  needs no approval. The finish time is the worker's hand-in time. Kalfa and
+  Çırak behave the same; Çırak only helps when choosing who to assign.
 - Companies (Firmalar): name visible to everyone; contact details (person,
   phone, e-mail, address, note) visible to CEO and managers only, enforced in
   the database. Deleting a company keeps its projects.
 - Projeler has two views: Liste (cards) and Takvim (projects as bars from
   opening to delivery date, step due dates as dots, line for today).
-- Bölümler (departments): Üretim, Tasarım, Satın alma, Muhasebe, a fixed list
-  because each one gets its own screens. Üretim has atölyeler (workshops,
-  editable list, e.g. Elektrik / Kaynak atölyesi). The panel stays the rank;
-  the bölüm decides which version of the app someone sees. CEO and managers
-  set someone's bölüm. One bölüm per person for now: Emir asked to be reminded
-  later that people may need several.
+- Bölümler: one editable list (table `bolumler`, 0007) holding workshops and
+  office departments alike (Elektrik atölyesi, Kaynak atölyesi, Tasarım, Satın
+  alma, Muhasebe...). It replaced 0006's fixed enum plus atölye list, because
+  Emir could add workshops but not departments. CEO and managers edit the list
+  and set someone's bölüm. Later each bölüm gets feature switches (e.g. "can
+  upload drawings") when Çizimler and Talepler are built. One bölüm per person
+  for now: Emir asked to be reminded later that people may need several.
 - Agreed next, in order: Çizimler (design uploads a PDF to view plus the
   original AutoCAD/SolidWorks file; originals only for CEO, managers, Tasarım;
   a worker sees a project's PDF only while assigned to a step on it, with their
   name printed on it, no download; each upload a new revision), then Talepler
   ("Sorun bildir → Malzeme eksik" with typed material and quantity goes to Satın
-  alma: needed, ordered, arrived; "Çizim hatalı" goes to Tasarım). Muhasebe is
+  alma: needed, ordered, arrived; "Çizim hatalı" goes to Tasarım). Talepler are
+  shown inside İşlerim; CEO and managers see every request (a box on Projeler
+  and a mark on the step) and can mark them ordered / arrived. Muhasebe is
   parked; Emir wants only the CEO to see invoices and payments, as two sections.
 - Chat, when built, goes on projects (one conversation per project), visible to
   workers too. The "Sorun bildir" button stays and should also post into the
@@ -93,7 +108,9 @@ SwiftUI's ConcentricRectangle):
   in the Supabase SQL Editor (copy from GitHub, paste, Run). So every migration
   must be safe to run more than once and must also work as one transaction.
   Push the front end so it still works before he has run the new file, and tell
-  him clearly which file to run. He has run 0001 to 0005; 0006_bolumler.sql is new.
+  him clearly which file to run. He has run 0001 to 0005; 0006_bolumler.sql and
+  0007_seviye_ve_bolum_listesi.sql are new (0007 works whether or not 0006 was
+  run, so if 0006 was skipped he only needs 0007).
   `src/lib/supabase.ts` `fetchProfiles` shows the pattern for working before a
   migration has run (fall back, hide the feature).
 - Data loads in `src/lib/workshop.tsx` (one provider, refreshes every 30 s and
@@ -106,12 +123,12 @@ stand-in (`scripts/local-stack.ts`: real Postgres with the real migrations and
 access rules, plus just enough of Supabase's auth and data API).
 
 ```
-./supabase/tests/run.sh                                 # database access rules (164 checks)
-scripts/local-up.sh && node scripts/e2e-stage1.mjs      # sign-in, panels, Ekip (30)
-scripts/local-up.sh && node scripts/e2e-stage2.mjs      # projects, steps, workers (47)
-scripts/local-up.sh && node scripts/e2e-companies.mjs   # Firmalar (22)
-scripts/local-up.sh && node scripts/e2e-approval.mjs    # approval, Takvim (32)
-FELIX_MIGRATIONS_UNTIL=0005 scripts/local-up.sh && node scripts/e2e-bolumler.mjs  # bölümler, runs 0006 mid-test (22)
+./supabase/tests/run.sh                                 # database access rules (153 checks)
+scripts/local-up.sh && node scripts/e2e-stage1.mjs      # sign-in, panels, Ekip, usernames, Ayarlar (35)
+scripts/local-up.sh && node scripts/e2e-stage2.mjs      # projects, steps, workers (49)
+scripts/local-up.sh && node scripts/e2e-companies.mjs   # Firmalar (23)
+scripts/local-up.sh && node scripts/e2e-approval.mjs    # approval by level, Takvim (29)
+FELIX_MIGRATIONS_UNTIL=0006 scripts/local-up.sh && node scripts/e2e-bolumler.mjs  # Bölümler list, levels, runs 0007 mid-test (34)
 ```
 
 Run them all before pushing, and check that each one actually printed "ALL ...
@@ -120,10 +137,12 @@ the screenshots, desktop and phone width.
 
 ## Status and what is next
 
-Done: sign-in and panels, Ekip and meslek türleri, Türler (project and step
+Done: sign-in and panels, Ekip, Türler (project and step
 types), projects with steps and assigning, start / finish / problems,
-approval, Firmalar, Takvim, keyboard handling on phones, icons, bölümler and
-atölyeler (Ekip grouped by bölüm, assign list grouped by workshop).
+approval, Firmalar, Takvim, keyboard handling on phones, icons, Bölümler list
+(Ekip and the assign list grouped by bölüm), hidden levels with approval by
+level, Personel wording, CEO-only username changes, İşlerim for managers,
+Ayarlar.
 
 Agreed but not built yet (stage 3):
 - Chat on each project.
@@ -135,8 +154,6 @@ Agreed but not built yet (stage 3):
 - Workload view: what each worker has this week.
 
 Open questions to Emir:
-- Should each project type remember the usual "Onay gerekir" choices so the
-  new-project form comes pre-set?
 - Does Takvim need a zoomed-out option to show more months?
 
 Ideas discussed, not agreed: duplicate a project, planned durations per step

@@ -28,7 +28,10 @@ begin
   return n;
 end $$;
 
--- manager builds a project type and a project from it, choosing which steps need approval
+-- Approval follows the person's level (0007): a Kalfa's or Çırak's finish waits
+-- for a manager, an Usta's does not. Nobody has a level yet, which counts as Kalfa.
+
+-- manager builds a project type and a project from it
 set role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
 insert into public.step_types (name) values ('Onaylı test'), ('Onaysız iş');
@@ -38,40 +41,31 @@ select pt.id, st.id, case st.name when 'Onaylı test' then 1 else 2 end
 from public.project_types pt, public.step_types st
 where pt.name = 'Onay türü' and st.name in ('Onaylı test', 'Onaysız iş');
 select id as type_id from public.project_types where name = 'Onay türü' \gset
-select pts.id as gated_row from public.project_type_steps pts join public.step_types st on st.id = pts.step_type_id
-  where pts.project_type_id = :'type_id' and st.name = 'Onaylı test' \gset
 
-select public.create_project('Onaysız proje', null, null, :'type_id') as none_id \gset
-select pg_temp.expect((select count(*) from public.project_steps where project_id = :'none_id' and needs_approval) = 0, 'a project created without choosing any has no steps needing approval');
-
-select public.create_project('Onay projesi', null, null, :'type_id', null, array[:'gated_row']::uuid[]) as project_id \gset
+select public.create_project('Onay projesi', null, null, :'type_id') as project_id \gset
 select id as gated from public.project_steps where project_id = :'project_id' and name = 'Onaylı test' \gset
 select id as plain from public.project_steps where project_id = :'project_id' and name = 'Onaysız iş' \gset
-select pg_temp.expect((select needs_approval from public.project_steps where id = :'gated'), 'the step chosen at creation needs approval');
-select pg_temp.expect((select not needs_approval from public.project_steps where id = :'plain'), 'and the one not chosen does not');
-select pg_temp.expect((select count(*) from public.project_steps where project_id = :'none_id' and needs_approval) = 0, 'the choice belongs to that project only');
-select public.create_project('Yabancı seçim', null, null, :'type_id', null, array['00000000-0000-0000-0000-0000000000ff']::uuid[]) as stray_id \gset
-select pg_temp.expect((select count(*) from public.project_steps where project_id = :'stray_id' and needs_approval) = 0, 'an id that is not one of the type''s steps is ignored');
 select public.add_step(:'project_id', (select id from public.step_types where name = 'Onaylı test')) as added \gset
-select pg_temp.expect((select not needs_approval from public.project_steps where id = :'added'), 'a step added later starts without approval');
-select pg_temp.expect(pg_temp.affected(format($$update public.project_steps set needs_approval = true where id = %L$$, :'added')) = 1, 'and a manager can switch it on for that step');
+select public.add_step(:'project_id', (select id from public.step_types where name = 'Onaysız iş')) as usta_step \gset
 insert into public.step_assignees (step_id, user_id) values
   (:'gated', '00000000-0000-0000-0000-00000000000c'),
   (:'plain', '00000000-0000-0000-0000-00000000000c'),
-  (:'added', '00000000-0000-0000-0000-00000000000c');
+  (:'added', '00000000-0000-0000-0000-00000000000c'),
+  (:'usta_step', '00000000-0000-0000-0000-00000000000c');
 
--- worker
+-- worker without a level (Kalfa)
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c"}', false);
-select pg_temp.expect(public.step_action(:'plain', 'finish') = 'done', 'a step that needs no approval still finishes straight away');
-select pg_temp.expect(public.step_action(:'gated', 'start') = 'active', 'worker starts the gated step');
-select pg_temp.expect(public.step_action(:'gated', 'finish') = 'review', 'finishing a gated step sends it for approval instead');
+select pg_temp.expect(public.step_action(:'plain', 'finish') = 'review', 'a Kalfa''s finish always waits for approval');
+select pg_temp.expect(public.step_action(:'gated', 'start') = 'active', 'worker starts a step');
+select pg_temp.expect(public.step_action(:'gated', 'finish') = 'review', 'and finishing it sends it for approval');
 select pg_temp.expect((select submitted_at is not null and finished_at is null from public.project_steps where id = :'gated'), 'it has a hand-in time but no finish time yet');
 select pg_temp.fails(format($$select public.step_action(%L, 'approve')$$, :'gated'), 'a worker cannot approve their own step');
 select pg_temp.fails(format($$select public.step_action(%L, 'reject', null, 'x')$$, :'gated'), 'a worker cannot send a step back');
 select pg_temp.fails(format($$select public.step_action(%L, 'finish')$$, :'gated'), 'a step waiting for approval cannot be finished again');
 select pg_temp.fails(format($$select public.step_action(%L, 'start')$$, :'gated'), 'nor restarted by the worker');
 select pg_temp.fails(format($$select public.step_action(%L, 'problem', 'Malzeme eksik')$$, :'gated'), 'nor have a problem reported on it');
-select pg_temp.expect(pg_temp.affected(format($$update public.project_steps set status = 'done', needs_approval = false where id = %L$$, :'gated')) = 0, 'a worker cannot skip approval by writing to the table');
+select pg_temp.expect(pg_temp.affected(format($$update public.project_steps set status = 'done' where id = %L$$, :'gated')) = 0, 'a worker cannot skip approval by writing to the table');
+select pg_temp.fails($$insert into public.seviyeler (user_id, seviye) values ('00000000-0000-0000-0000-00000000000c', 'usta')$$, 'a worker cannot make themself an Usta');
 
 -- manager sends it back
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
@@ -102,15 +96,25 @@ select pg_temp.expect(
   'the history shows the whole back-and-forth');
 select pg_temp.expect((select detail from public.step_events where step_id = :'gated' and kind = 'rejected') = 'Kaynak dikişleri taşlanmamış', 'including why it was sent back');
 
--- a manager finishing a gated step needs nobody's approval
-select pg_temp.expect(public.step_action(:'added', 'finish') = 'done', 'a manager or CEO finishing a gated step completes it directly');
+-- a manager's or the CEO's own finish needs nobody's approval
+select pg_temp.expect(public.step_action(:'added', 'finish') = 'done', 'a manager or CEO finishing a step completes it directly');
 
--- a manager can switch approval off for one step
+-- a Çırak is treated like a Kalfa; an Usta's finish counts at once
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
-select public.add_step(:'project_id', (select id from public.step_types where name = 'Onaysız iş')) as extra \gset
-select pg_temp.expect(pg_temp.affected(format($$update public.project_steps set needs_approval = true where id = %L$$, :'extra')) = 1, 'a manager can switch approval on for a single step');
+insert into public.seviyeler (user_id, seviye) values ('00000000-0000-0000-0000-00000000000c', 'cirak');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c"}', false);
+select pg_temp.expect((select count(*) from public.seviyeler) = 0, 'a worker cannot see levels, not even their own');
+select pg_temp.expect(public.step_action(:'usta_step', 'finish') = 'review', 'a Çırak''s finish waits for approval too');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
+select pg_temp.expect(public.step_action(:'usta_step', 'reject', null, 'Tekrar') = 'active', 'manager sends it back');
+select pg_temp.expect(pg_temp.affected($$update public.seviyeler set seviye = 'usta' where user_id = '00000000-0000-0000-0000-00000000000c'$$) = 1,
+  'a manager can make someone an Usta');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c"}', false);
+select pg_temp.expect(public.step_action(:'usta_step', 'finish') = 'done', 'an Usta''s finish counts at once');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
 select pg_temp.expect(public.step_action(:'gated', 'reopen') = 'active', 'a reopened step is in progress again');
 select pg_temp.expect(public.step_action(:'gated', 'reset') = 'waiting', 'and can be reset');
+delete from public.seviyeler;
 reset role;
 
 \echo ALL APPROVAL TESTS PASSED

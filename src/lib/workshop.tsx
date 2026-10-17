@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { friendly } from './errors'
-import { BOLUMLER, BOLUM_LABEL, fetchProfiles, supabase, type Atolye, type Meslek, type Profile } from './supabase'
+import { DEFAULT_SEVIYE, fetchProfiles, supabase, type Bolum, type Profile, type Seviye } from './supabase'
 
 export type StepStatus = 'waiting' | 'active' | 'problem' | 'review' | 'done'
 
@@ -25,8 +25,6 @@ export type Step = {
   problem_note: string | null
   started_at: string | null
   finished_at: string | null
-  /** A worker's finish waits for a manager before the step counts as done. */
-  needs_approval: boolean
   submitted_at: string | null
   /** Why a manager sent the step back, shown to the worker until it is handed in again. */
   review_note: string | null
@@ -52,9 +50,10 @@ type Raw = {
   steps: Step[]
   assignees: { step_id: string; user_id: string }[]
   people: Profile[]
-  meslekler: Meslek[]
-  atolyeler: Atolye[]
-  /** False until 0006_bolumler.sql has been run: bölümler and atölyeler are then hidden. */
+  bolumler: Bolum[]
+  /** Empty for Personel: the database shows levels only to the CEO and managers. */
+  seviyeler: { user_id: string; seviye: Seviye }[]
+  /** False until 0007 has been run: bölümler and levels are then hidden. */
   bolumReady: boolean
   stepTypes: StepType[]
   projectTypes: NamedItem[]
@@ -70,6 +69,9 @@ export type Workshop = Raw & {
   /** People assigned to a step, by name. */
   assigneesOf: (stepId: string) => Profile[]
   person: (id: string) => Profile | undefined
+  /** A Personel's level (Kalfa when none is stored); undefined for the CEO and managers. */
+  seviyeOf: (person: Profile) => Seviye | undefined
+  bolumName: (id: string | null) => string | undefined
   project: (id: string) => Project | undefined
   company: (id: string | null) => Company | undefined
   detailsOf: (companyId: string) => CompanyDetails | undefined
@@ -91,36 +93,37 @@ const WorkshopContext = createContext<WorkshopContextValue | null>(null)
 const REFRESH_MS = 30_000
 
 async function load(): Promise<Raw> {
-  const [projects, steps, assignees, people, meslekler, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails, atolyeler] = await Promise.all([
+  const [projects, steps, assignees, people, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails, bolumler, seviyeler] = await Promise.all([
     supabase.from('projects').select('id, code, name, due_date, project_type_id, company_id, created_at').order('created_at'),
     supabase
       .from('project_steps')
       .select(
-        'id, project_id, name, position, due_date, status, problem_reason, problem_note, started_at, finished_at, needs_approval, submitted_at, review_note',
+        'id, project_id, name, position, due_date, status, problem_reason, problem_note, started_at, finished_at, submitted_at, review_note',
       )
       .order('position'),
     supabase.from('step_assignees').select('step_id, user_id'),
     fetchProfiles(),
-    supabase.from('meslek_turleri').select('id, name').order('name'),
     supabase.from('step_types').select('id, name').order('name'),
     supabase.from('project_types').select('id, name').order('name'),
     supabase.from('project_type_steps').select('id, project_type_id, step_type_id, position').order('position'),
     supabase.from('companies').select('id, name').order('name'),
     supabase.from('company_details').select('company_id, contact_name, email, phone, address, notes'),
-    supabase.from('atolyeler').select('id, name').order('name'),
+    supabase.from('bolumler').select('id, name').order('name'),
+    supabase.from('seviyeler').select('user_id, seviye'),
   ])
-  const failed = [projects, steps, assignees, people, meslekler, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails].find((r) => r.error)
+  const failed = [projects, steps, assignees, people, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails].find((r) => r.error)
   if (failed?.error) throw failed.error
-  // The workshop list only exists once 0006_bolumler.sql has run.
-  if (people.bolumReady && atolyeler.error) throw atolyeler.error
+  // Bölümler and levels only exist once 0007 has run.
+  const ready = people.bolumReady
+  if (ready && (bolumler.error || seviyeler.error)) throw bolumler.error ?? seviyeler.error
   return {
     projects: projects.data as Project[],
     steps: steps.data as Step[],
     assignees: assignees.data as Raw['assignees'],
     people: people.data as Profile[],
-    meslekler: meslekler.data as Meslek[],
-    atolyeler: people.bolumReady ? (atolyeler.data as Atolye[]) : [],
-    bolumReady: people.bolumReady,
+    bolumler: ready ? (bolumler.data as Bolum[]) : [],
+    seviyeler: ready ? (seviyeler.data as Raw['seviyeler']) : [],
+    bolumReady: ready,
     stepTypes: stepTypes.data as StepType[],
     projectTypes: projectTypes.data as NamedItem[],
     projectTypeSteps: projectTypeSteps.data as ProjectTypeStep[],
@@ -136,8 +139,7 @@ function index(input: Raw): Workshop {
   const raw: Raw = {
     ...input,
     people: [...input.people].sort((a, b) => a.full_name.localeCompare(b.full_name, 'tr')),
-    meslekler: [...input.meslekler].sort(byName),
-    atolyeler: [...input.atolyeler].sort(byName),
+    bolumler: [...input.bolumler].sort(byName),
     stepTypes: [...input.stepTypes].sort(byName),
     projectTypes: [...input.projectTypes].sort(byName),
     companies: [...input.companies].sort(byName),
@@ -147,6 +149,8 @@ function index(input: Raw): Workshop {
   const companies = new Map(raw.companies.map((c) => [c.id, c]))
   const details = new Map(raw.companyDetails.map((d) => [d.company_id, d]))
   const stepTypeName = new Map(raw.stepTypes.map((s) => [s.id, s.name]))
+  const seviye = new Map(raw.seviyeler.map((s) => [s.user_id, s.seviye]))
+  const bolumName = new Map(raw.bolumler.map((b) => [b.id, b.name]))
   const steps = new Map<string, Step[]>()
   for (const s of raw.steps) {
     const list = steps.get(s.project_id)
@@ -173,6 +177,8 @@ function index(input: Raw): Workshop {
     stepsOf: (id) => steps.get(id) ?? [],
     assigneesOf: (id) => assigned.get(id) ?? [],
     person: (id) => people.get(id),
+    seviyeOf: (p) => (p.panel === 'worker' ? (seviye.get(p.id) ?? DEFAULT_SEVIYE) : undefined),
+    bolumName: (id) => (id ? bolumName.get(id) : undefined),
     project: (id) => projects.get(id),
     company: (id) => (id ? companies.get(id) : undefined),
     detailsOf: (id) => details.get(id),
@@ -242,22 +248,16 @@ export function useWorkshop(): WorkshopContextValue {
 }
 
 /**
- * People split by where they work, for pickers: each Üretim workshop, the rest
- * of Üretim, the other bölümler, then people with no bölüm. Before 0006 has
- * run, or when nobody has a bölüm yet, one untitled group.
+ * People split by bölüm, for pickers, with people who have none last. Before
+ * 0007 has run, or when nobody has a bölüm yet, one untitled group.
  */
 export function groupPeople(data: Workshop, people: Profile[]): { title: string | null; people: Profile[] }[] {
-  if (!data.bolumReady || people.every((p) => !p.bolum)) return [{ title: null, people }]
-  const groups = [
-    ...data.atolyeler.map((a) => ({ title: a.name, people: people.filter((p) => p.bolum === 'uretim' && p.atolye_id === a.id) })),
-    {
-      title: data.atolyeler.length ? 'Üretim (atölye seçilmedi)' : BOLUM_LABEL.uretim,
-      people: people.filter((p) => p.bolum === 'uretim' && !data.atolyeler.some((a) => a.id === p.atolye_id)),
-    },
-    ...BOLUMLER.filter((b) => b !== 'uretim').map((b) => ({ title: BOLUM_LABEL[b], people: people.filter((p) => p.bolum === b) })),
-    { title: 'Bölüm seçilmedi', people: people.filter((p) => !p.bolum) },
-  ]
-  return groups.filter((g) => g.people.length > 0)
+  if (!data.bolumReady || people.every((p) => !p.bolum_id)) return [{ title: null, people }]
+  const known = new Set(data.bolumler.map((b) => b.id))
+  return [
+    ...data.bolumler.map((b) => ({ title: b.name, people: people.filter((p) => p.bolum_id === b.id) })),
+    { title: 'Bölüm seçilmedi', people: people.filter((p) => !p.bolum_id || !known.has(p.bolum_id)) },
+  ].filter((g) => g.people.length > 0)
 }
 
 // ---- Dates and status, shared by every screen ----
