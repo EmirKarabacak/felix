@@ -49,7 +49,7 @@ await page.evaluate(async () => {
     body: JSON.stringify({ full_name: 'Ahmet Yılmaz', username: 'ahmet', password: 'ahmet123', panel: 'worker' }),
   })
 })
-expect((await page.locator('.topnav a').allInnerTexts()).join('|') === 'Projeler|Firmalar|Türler|Ekip', 'Firmalar is in the menu')
+expect((await page.locator('.topnav a').allInnerTexts()).join('|') === 'İşlerim|Projeler|Firmalar|Türler|Ekip', 'Firmalar is in the menu')
 
 // ---- create, duplicate, edit ----
 await nav(page, 'Firmalar')

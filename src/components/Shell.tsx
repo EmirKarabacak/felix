@@ -9,6 +9,7 @@ import { Dialog, ErrorNote, Field, Icon, type IconName } from './ui'
 type Tab = { to: string; label: string; icon: IconName }
 
 const MANAGER_TABS: Tab[] = [
+  { to: '/islerim', label: 'İşlerim', icon: 'list' },
   { to: '/projeler', label: 'Projeler', icon: 'folder' },
   { to: '/firmalar', label: 'Firmalar', icon: 'building' },
   { to: '/turler', label: 'Türler', icon: 'layers' },

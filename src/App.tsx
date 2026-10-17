@@ -48,6 +48,7 @@ export function App() {
         <Routes>
           <Route path="/projeler" element={<Projeler />} />
           <Route path="/projeler/:id" element={<ProjeDetay />} />
+          <Route path="/islerim" element={<Islerim />} />
           {manages ? (
             <>
               <Route path="/firmalar" element={<Firmalar />} />
@@ -56,10 +57,7 @@ export function App() {
               <Route path="*" element={<Navigate to="/projeler" replace />} />
             </>
           ) : (
-            <>
-              <Route path="/islerim" element={<Islerim />} />
-              <Route path="*" element={<Navigate to="/islerim" replace />} />
-            </>
+            <Route path="*" element={<Navigate to="/islerim" replace />} />
           )}
         </Routes>
         </ErrorBoundary>
