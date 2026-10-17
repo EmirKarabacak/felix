@@ -13,6 +13,8 @@ import { Firmalar } from './pages/Firmalar'
 import { Turler } from './pages/Turler'
 import { WorkshopProvider } from './lib/workshop'
 import { Setup } from './pages/Setup'
+import { Ayarlar } from './pages/Ayarlar'
+import { Bolumler } from './pages/Bolumler'
 
 export function App() {
   const { state } = useAuth()
@@ -40,7 +42,8 @@ export function App() {
 
   if (state.status === 'signedOut') return <SignedOut notice={state.notice} />
 
-  const manages = canManage(state.profile.panel)
+  const panel = state.profile.panel
+  const manages = canManage(panel)
   return (
     <WorkshopProvider>
       <Shell>
@@ -48,19 +51,18 @@ export function App() {
         <Routes>
           <Route path="/projeler" element={<Projeler />} />
           <Route path="/projeler/:id" element={<ProjeDetay />} />
+          <Route path="/ayarlar" element={<Ayarlar />} />
+          {/* The CEO hands out work rather than receiving it, so has no İşlerim. */}
+          {panel !== 'ceo' ? <Route path="/islerim" element={<Islerim />} /> : null}
           {manages ? (
             <>
+              <Route path="/ekip" element={<Ekip />} />
               <Route path="/firmalar" element={<Firmalar />} />
               <Route path="/turler" element={<Turler />} />
-              <Route path="/ekip" element={<Ekip />} />
-              <Route path="*" element={<Navigate to="/projeler" replace />} />
+              <Route path="/bolumler" element={<Bolumler />} />
             </>
-          ) : (
-            <>
-              <Route path="/islerim" element={<Islerim />} />
-              <Route path="*" element={<Navigate to="/islerim" replace />} />
-            </>
-          )}
+          ) : null}
+          <Route path="*" element={<Navigate to={manages ? '/projeler' : '/islerim'} replace />} />
         </Routes>
         </ErrorBoundary>
       </Shell>

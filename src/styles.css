@@ -453,6 +453,11 @@ select.input {
   max-width: 60vw;
 }
 
+.account {
+  color: var(--ink);
+  text-decoration: none;
+}
+
 .account span {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -498,6 +503,69 @@ select.input {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+/* Ayarlar */
+.page.settings {
+  max-width: 720px;
+}
+
+.sub.block {
+  display: block;
+  margin-top: 0.125rem;
+}
+
+.settings .fact {
+  padding: 0.375rem 0;
+}
+
+.password-form {
+  padding: var(--pad);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.link-list {
+  padding: 0 0.5rem 0 1rem;
+}
+
+.link-row {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.link-row > svg:first-child {
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.link-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.link-label {
+  font-weight: 600;
+}
+
+.link-row .go {
+  color: #8e8e93;
+  display: flex;
+}
+
+.home-guide {
+  padding: var(--pad);
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  line-height: 1.45;
 }
 
 /* Ekip */
@@ -829,7 +897,6 @@ h3 .count {
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  cursor: pointer;
 }
 
 .approval-row .no {
@@ -840,12 +907,6 @@ h3 .count {
   flex: 1 1 auto;
   min-width: 0;
   font-weight: 500;
-}
-
-.approval-label {
-  font-size: 0.8125rem;
-  color: var(--ink-2);
-  white-space: nowrap;
 }
 
 .preview {
@@ -1548,6 +1609,11 @@ h3 .count {
   }
 
   .topnav {
+    display: none;
+  }
+
+  /* On phones Ayarlar is in the tab bar. */
+  .account {
     display: none;
   }
 

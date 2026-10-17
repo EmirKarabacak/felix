@@ -33,6 +33,10 @@ end $$;
 insert into auth.users (id) values ('00000000-0000-0000-0000-00000000000e');
 insert into public.profiles (id, full_name, username, panel) values
   ('00000000-0000-0000-0000-00000000000e', 'Worker Two', 'worker2', 'worker');
+-- Both workers are Usta here, so finishing is immediate; approval is tested in stage4.
+insert into public.seviyeler (user_id, seviye) values
+  ('00000000-0000-0000-0000-00000000000c', 'usta'),
+  ('00000000-0000-0000-0000-00000000000e', 'usta');
 
 select pg_temp.expect((select count(*) from public.step_types) = 9, 'starting step types exist');
 select pg_temp.expect(
@@ -150,4 +154,5 @@ delete from public.projects where id = :'project_id';
 select pg_temp.expect((select count(*) from public.project_steps where project_id = :'project_id') = 0, 'deleting a project removes its steps');
 select pg_temp.expect((select count(*) from public.step_events where project_id = :'project_id') = 0, 'and its history');
 
+delete from public.seviyeler;
 \echo ALL STAGE 2 ACCESS TESTS PASSED
