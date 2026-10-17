@@ -3,17 +3,17 @@ import { Link } from 'react-router-dom'
 import { ErrorNote, Field, Icon, Switch, type IconName } from '../components/ui'
 import { useAuth, useProfile } from '../lib/auth'
 import { friendly } from '../lib/errors'
-import { PANEL_LABEL, canManage, rememberMe, supabase } from '../lib/supabase'
+import { canManage, rememberMe, rolLabel, supabase } from '../lib/supabase'
 import { useWorkshop } from '../lib/workshop'
 import { MIN_PASSWORD_LENGTH } from '../../shared/username'
 
 const LISTS: { to: string; label: string; note: string; icon: IconName }[] = [
   { to: '/firmalar', label: 'Firmalar', note: 'Müşteri firmalar ve iletişim bilgileri', icon: 'building' },
   { to: '/turler', label: 'Türler', note: 'Proje ve adım türleri', icon: 'layers' },
-  { to: '/bolumler', label: 'Bölümler', note: 'Atölyeler ve ofis bölümleri', icon: 'people' },
+  { to: '/uzmanliklar', label: 'Uzmanlıklar', note: 'İmalattaki uzmanlıklar: Kaynakçı, Elektrikçi…', icon: 'wrench' },
 ]
 
-/** Everyone's account, plus the lists the CEO and managers set up once. */
+/** Everyone's account, plus the lists Genel Müdür, IT and Bölüm Sorumluları set up once. */
 export function Ayarlar() {
   const profile = useProfile()
   const { signOut } = useAuth()
@@ -38,8 +38,8 @@ export function Ayarlar() {
             <span className="value mono">{profile.username}</span>
           </div>
           <div className="fact">
-            <span>Panel</span>
-            <span className="value">{PANEL_LABEL[profile.panel]}</span>
+            <span>Rol</span>
+            <span className="value">{rolLabel(profile)}</span>
           </div>
           {bolum ? (
             <div className="fact">

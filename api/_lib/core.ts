@@ -14,8 +14,10 @@ import {
 export type Reply = { status: number; body: Record<string, unknown> }
 export type Call = { method: string; body: unknown; authorization: string | undefined }
 
+// 'ceo' is Genel Müdür or IT (profiles.unvan, 0008); 'manager' is Bölüm Sorumlusu.
 type Panel = 'ceo' | 'manager' | 'worker'
 const PANELS: Panel[] = ['ceo', 'manager', 'worker']
+const UNVANLAR = ['genel_mudur', 'it']
 const SEVIYELER = ['usta', 'kalfa', 'cirak']
 
 const fail = (status: number, error: string): Reply => ({ status, body: { error } })
@@ -57,9 +59,9 @@ async function createPerson(
   db: SupabaseClient,
   person: NewPerson,
   panel: Panel,
-  // Bölüm and level (0007). The browser sends them only once that migration
-  // has run, so they are left out when absent.
-  place: { bolumId?: string | null; seviye?: string | null } = {},
+  // Bölüm (0007), unvan and uzmanlıklar with levels (0008). The browser sends
+  // them only once those migrations have run, so they are left out when absent.
+  place: { bolumId?: string | null; unvan?: string | null; uzmanliklar?: { uzmanlik_id: string; seviye: string }[] } = {},
 ): Promise<Reply> {
   const taken = await db.from('profiles').select('id').eq('username', person.username).maybeSingle()
   if (taken.error) return fail(500, taken.error.message)
@@ -81,14 +83,17 @@ async function createPerson(
     username: person.username,
     panel,
     ...(place.bolumId ? { bolum_id: place.bolumId } : {}),
+    ...(panel === 'ceo' && place.unvan ? { unvan: place.unvan } : {}),
   })
   if (inserted.error) {
     // Do not leave a sign-in without a profile behind.
     await db.auth.admin.deleteUser(id)
     return fail(400, inserted.error.message)
   }
-  if (panel === 'worker' && place.seviye) {
-    const level = await db.from('seviyeler').insert({ user_id: id, seviye: place.seviye })
+  if (panel === 'worker' && place.uzmanliklar?.length) {
+    const level = await db
+      .from('kisi_uzmanliklari')
+      .insert(place.uzmanliklar.map((u) => ({ user_id: id, uzmanlik_id: u.uzmanlik_id, seviye: u.seviye })))
     if (level.error) {
       // Removing the sign-in removes the profile with it.
       await db.auth.admin.deleteUser(id)
@@ -98,7 +103,7 @@ async function createPerson(
   return ok({ id })
 }
 
-/** Resolves the caller from their session token and requires an active CEO. */
+/** Resolves the caller from their session token and requires an active Genel Müdür or IT. */
 async function requireCeo(db: SupabaseClient, authorization: string | undefined): Promise<string | Reply> {
   const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : ''
   if (!token) return fail(401, 'Oturum bulunamadı. Yeniden giriş yapın.')
@@ -111,7 +116,7 @@ async function requireCeo(db: SupabaseClient, authorization: string | undefined)
     .maybeSingle()
   if (profile.error) return fail(500, profile.error.message)
   if (!profile.data?.active || profile.data.panel !== 'ceo') {
-    return fail(403, 'Bu işlemi yalnızca CEO yapabilir.')
+    return fail(403, 'Bu işlemi yalnızca Genel Müdür veya IT yapabilir.')
   }
   return who.data.user.id
 }
@@ -122,7 +127,7 @@ function sameSecret(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y)
 }
 
-/** POST /api/setup: creates the first CEO. Works only while there are no people at all. */
+/** POST /api/setup: creates the first Genel Müdür. Works only while there are no people at all. */
 export async function handleSetup(call: Call, db: SupabaseClient = adminClient()): Promise<Reply> {
   if (call.method !== 'POST') return fail(405, 'Yöntem desteklenmiyor.')
   const input = asRecord(call.body)
@@ -140,7 +145,7 @@ export async function handleSetup(call: Call, db: SupabaseClient = adminClient()
   return createPerson(db, person, 'ceo')
 }
 
-/** /api/users: POST adds a person, PATCH changes a username or password, DELETE removes a person. CEO only. */
+/** /api/users: POST adds a person, PATCH changes a username or password, DELETE removes a person. Genel Müdür and IT only. */
 export async function handleUsers(call: Call, db: SupabaseClient = adminClient()): Promise<Reply> {
   const caller = await requireCeo(db, call.authorization)
   if (typeof caller !== 'string') return caller
@@ -151,8 +156,12 @@ export async function handleUsers(call: Call, db: SupabaseClient = adminClient()
     if (typeof person === 'string') return fail(400, person)
     const panel = PANELS.includes(input.panel as Panel) ? (input.panel as Panel) : 'worker'
     const bolumId = text(input.bolum_id) || null
-    const seviye = SEVIYELER.includes(text(input.seviye)) ? text(input.seviye) : null
-    return createPerson(db, person, panel, { bolumId, seviye })
+    const unvan = UNVANLAR.includes(text(input.unvan)) ? text(input.unvan) : null
+    const uzmanliklar = (Array.isArray(input.uzmanliklar) ? input.uzmanliklar : [])
+      .map(asRecord)
+      .filter((u) => text(u.uzmanlik_id) && SEVIYELER.includes(text(u.seviye)))
+      .map((u) => ({ uzmanlik_id: text(u.uzmanlik_id), seviye: text(u.seviye) }))
+    return createPerson(db, person, panel, { bolumId, unvan, uzmanliklar })
   }
 
   const id = text(input.id)

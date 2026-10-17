@@ -1603,9 +1603,220 @@ h3 .count {
   }
 }
 
+/* Four roles on a phone: two per row. */
+.segmented-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+/* Talepler (material and drawing requests) */
+.talepler {
+  padding: 0 0.875rem 0 1rem;
+}
+
+.talep {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: 0.75rem 0;
+}
+
+.talep-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.talep-malzeme {
+  background: var(--warn-tint);
+  color: var(--warn-ink);
+}
+
+.talep-cizim {
+  background: var(--review-tint);
+  color: var(--review-ink);
+}
+
+.talep-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.talep-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.5rem;
+}
+
+.talep-top strong {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.talep-note {
+  font-size: 0.9375rem;
+}
+
+.talep-where {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.talep-handler {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.talep-handler.on {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.talep-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.talep-mark {
+  margin-right: 0.375rem;
+}
+
+.material-pair {
+  align-items: start;
+}
+
+/* Uzmanlık ticks with a level each, in the person form */
+.uzmanlik-row {
+  padding-bottom: 0.25rem;
+}
+
+.uzmanlik-row .segmented {
+  margin-bottom: 0.5rem;
+}
+
+.name-row .uzmanlik-select {
+  flex: 0 0 auto;
+  width: 11rem;
+  min-height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Dosyalar */
+.project-files {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.files {
+  gap: 0.5rem;
+}
+
+.files-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 44px;
+}
+
+.files-head .field-label {
+  margin: 0;
+}
+
+.file-list {
+  padding: 0 0.25rem 0 0.875rem;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 56px;
+}
+
+.file-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.375rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.file-icon {
+  color: var(--accent);
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.file-old .file-icon {
+  color: var(--ink-2);
+}
+
+.file-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-name {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.file-go {
+  color: var(--ink-2);
+  display: flex;
+  padding-right: 0.5rem;
+}
+
+.file-buttons {
+  display: flex;
+  gap: 0.5rem;
+  padding-right: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.old-files {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.old-files > .card {
+  align-self: stretch;
+}
+
 @media (max-width: 700px) {
   h1 {
     font-size: 1.875rem;
+  }
+
+  /* Room for the uzmanlık picker next to a step type's name. */
+  .name-row:has(.uzmanlik-select) .count {
+    display: none;
   }
 
   .topnav {

@@ -1,4 +1,5 @@
-// End-to-end check of approval by level (Usta finishes, Kalfa waits) and the Takvim view.
+// End-to-end check of approval by the level in the step's uzmanlık (an Usta's
+// finish counts in their own uzmanlık only) and the Takvim view.
 //   scripts/local-up.sh && node scripts/e2e-approval.mjs [screenshot-folder]
 import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
@@ -50,16 +51,20 @@ await page.getByLabel('Kurulum kodu').fill('kurulum')
 await page.getByLabel('Ad soyad').fill('Emir Karabacak')
 await page.getByLabel('Kullanıcı adı').fill('emir')
 await page.getByLabel('Şifre').fill('emir1234')
-await page.getByRole('button', { name: 'CEO hesabını oluştur' }).click()
+await page.getByRole('button', { name: 'Genel Müdür hesabını oluştur' }).click()
 await page.getByRole('heading', { name: 'Projeler' }).waitFor()
 await page.evaluate(async () => {
   const key = Object.keys(localStorage).find((k) => k.endsWith('-auth-token'))
   const token = JSON.parse(localStorage.getItem(key)).access_token
-  const add = (body) =>
-    fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) })
-  await add({ full_name: 'Selim Ateş', username: 'selim', password: 'selim123', panel: 'manager' })
-  await add({ full_name: 'Ahmet Yılmaz', username: 'ahmet', password: 'ahmet123', panel: 'worker', seviye: 'kalfa' })
-  await add({ full_name: 'Murat Kaya', username: 'murat', password: 'murat123', panel: 'worker', seviye: 'usta' })
+  const auth = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+  const add = (body) => fetch('/api/users', { method: 'POST', headers: auth, body: JSON.stringify(body) })
+  const rest = (path) => fetch(`http://127.0.0.1:54321/rest/v1/${path}`, { headers: auth }).then((r) => r.json())
+  const [imalat] = await rest('bolumler?select=id&kod=eq.imalat')
+  const [kaynak] = await rest('uzmanliklar?select=id&name=eq.Kaynakçı')
+  const kaynakci = (seviye) => ({ bolum_id: imalat.id, uzmanliklar: [{ uzmanlik_id: kaynak.id, seviye }] })
+  await add({ full_name: 'Selim Ateş', username: 'selim', password: 'selim123', panel: 'manager', bolum_id: imalat.id })
+  await add({ full_name: 'Ahmet Yılmaz', username: 'ahmet', password: 'ahmet123', panel: 'worker', ...kaynakci('kalfa') })
+  await add({ full_name: 'Murat Kaya', username: 'murat', password: 'murat123', panel: 'worker', ...kaynakci('usta') })
 })
 
 // ---- there is nothing to switch any more: the level decides ----
@@ -79,11 +84,17 @@ await page.waitForTimeout(400)
 await page.screenshot({ path: `${SHOTS}/40-yeni-proje.png` })
 await dialog(page).getByRole('button', { name: 'Projeyi oluştur' }).click()
 await page.getByRole('heading', { name: '500 m³/gün RO Ünitesi' }).waitFor()
-for (const [name, who] of [['Test', 'Ahmet Yılmaz'], ['Borulama', 'Murat Kaya']]) {
+for (const [name, who] of [['Test', 'Ahmet Yılmaz'], ['Şase imalatı', 'Murat Kaya']]) {
   await stepRow(page, name).click()
   if (name === 'Test') expect(await dialog(page).getByRole('switch').count() === 0, 'a step has no approval switch either')
   const person = dialog(page).getByRole('button', { name: new RegExp(who) })
-  if (name === 'Test') expect((await person.innerText()).includes('Kalfa'), 'the assign list shows the level to the CEO')
+  if (name === 'Test') expect((await person.innerText()).includes('Kaynakçı · Kalfa'), 'the assign list shows uzmanlık and level to the Genel Müdür')
+  if (name === 'Şase imalatı') {
+    const suggested = dialog(page).getByRole('group', { name: 'Önerilen: Kaynakçı' })
+    expect((await suggested.locator('.check-row').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim()).join('|') === 'Murat Kaya Usta|Ahmet Yılmaz Kalfa',
+      "the step's uzmanlık puts Kaynakçılar first, Usta before Kalfa")
+    await page.screenshot({ path: `${SHOTS}/40c-onerilen.png` })
+  }
   await person.click()
   await page.waitForFunction(() => document.querySelectorAll('[role=dialog] .check-row[aria-pressed=true]').length === 1)
   if (name === 'Test') await page.screenshot({ path: `${SHOTS}/40b-sorumlu-seviye.png` })
@@ -94,12 +105,12 @@ for (const [name, who] of [['Test', 'Ahmet Yılmaz'], ['Borulama', 'Murat Kaya']
 const murat = await (await browser.newContext(PHONE)).newPage()
 watch(murat, 'murat')
 await signIn(murat, 'murat', 'murat123')
-await murat.locator('button.job', { hasText: 'Borulama' }).click()
+await murat.locator('button.job', { hasText: 'Şase imalatı' }).click()
 expect(!(await dialog(murat).innerText()).includes('Usta'), 'Personel never see their own level')
 await dialog(murat).getByRole('button', { name: 'İşe başla' }).click()
 await dialog(murat).getByRole('button', { name: 'İşi bitir', exact: true }).click()
 await dialog(murat).locator('.facts .status-done').waitFor()
-ok("an Usta's finish completes the step straight away")
+ok("a Kaynakçı Usta's finish of a Kaynakçı step completes it straight away")
 await closeDialog(murat)
 await nav(murat, 'Ayarlar')
 await murat.getByRole('button', { name: 'Çıkış yap' }).waitFor()
@@ -123,7 +134,7 @@ await closeDialog(ahmet)
 await ahmet.locator('section[aria-label="Onay bekleyen"] button.job', { hasText: 'Test' }).waitFor()
 ok('the step sits under "Onay bekleyen" in İşlerim')
 
-// ---- CEO sends it back ----
+// ---- Genel Müdür sends it back ----
 await nav(page, 'Projeler')
 await page.reload()
 await page.locator('section[aria-label="Onay bekleyen işler"]').waitFor()
@@ -178,6 +189,25 @@ await closeDialog(selim)
 await stepRow(selim, 'Borulama').click()
 await dialog(selim).getByLabel('Bitiş tarihi').fill('2027-02-10')
 await selim.waitForTimeout(300)
+await closeDialog(selim)
+
+// ---- the same Usta waits on a step outside their uzmanlık ----
+await stepRow(selim, 'Elektrik ve pano').click()
+await dialog(selim).getByRole('button', { name: /Murat Kaya/ }).click()
+await selim.waitForFunction(() => document.querySelectorAll('[role=dialog] .check-row[aria-pressed=true]').length === 1)
+await closeDialog(selim)
+await murat.reload()
+await nav(murat, 'İşlerim')
+await murat.locator('button.job', { hasText: 'Elektrik ve pano' }).click()
+await dialog(murat).getByRole('button', { name: 'İşe başla' }).click()
+await dialog(murat).getByRole('button', { name: 'İşi bitir', exact: true }).click()
+await dialog(murat).getByText('Yönetici onayı bekleniyor.').waitFor()
+ok('a Kaynakçı Usta without Elektrikçi waits for approval on an Elektrik step')
+await closeDialog(murat)
+await selim.reload()
+await stepRow(selim, 'Elektrik ve pano').click()
+await dialog(selim).getByRole('button', { name: 'Onayla' }).click()
+await dialog(selim).locator('.facts .status-done').waitFor()
 await closeDialog(selim)
 
 // ---- Takvim ----

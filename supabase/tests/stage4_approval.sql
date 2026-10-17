@@ -28,8 +28,9 @@ begin
   return n;
 end $$;
 
--- Approval follows the person's level (0007): a Kalfa's or Çırak's finish waits
--- for a manager, an Usta's does not. Nobody has a level yet, which counts as Kalfa.
+-- Approval follows the person's level in the step's uzmanlık (0008): only an
+-- Usta's finish counts at once. The worker has no bölüm or uzmanlık yet, so
+-- every finish of theirs waits for a manager.
 
 -- manager builds a project type and a project from it
 set role authenticated;
@@ -53,9 +54,9 @@ insert into public.step_assignees (step_id, user_id) values
   (:'added', '00000000-0000-0000-0000-00000000000c'),
   (:'usta_step', '00000000-0000-0000-0000-00000000000c');
 
--- worker without a level (Kalfa)
+-- worker without an uzmanlık
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c"}', false);
-select pg_temp.expect(public.step_action(:'plain', 'finish') = 'review', 'a Kalfa''s finish always waits for approval');
+select pg_temp.expect(public.step_action(:'plain', 'finish') = 'review', 'a finish without the uzmanlık always waits for approval');
 select pg_temp.expect(public.step_action(:'gated', 'start') = 'active', 'worker starts a step');
 select pg_temp.expect(public.step_action(:'gated', 'finish') = 'review', 'and finishing it sends it for approval');
 select pg_temp.expect((select submitted_at is not null and finished_at is null from public.project_steps where id = :'gated'), 'it has a hand-in time but no finish time yet');
@@ -65,7 +66,7 @@ select pg_temp.fails(format($$select public.step_action(%L, 'finish')$$, :'gated
 select pg_temp.fails(format($$select public.step_action(%L, 'start')$$, :'gated'), 'nor restarted by the worker');
 select pg_temp.fails(format($$select public.step_action(%L, 'problem', 'Malzeme eksik')$$, :'gated'), 'nor have a problem reported on it');
 select pg_temp.expect(pg_temp.affected(format($$update public.project_steps set status = 'done' where id = %L$$, :'gated')) = 0, 'a worker cannot skip approval by writing to the table');
-select pg_temp.fails($$insert into public.seviyeler (user_id, seviye) values ('00000000-0000-0000-0000-00000000000c', 'usta')$$, 'a worker cannot make themself an Usta');
+select pg_temp.fails($$insert into public.kisi_uzmanliklari (user_id, uzmanlik_id, seviye) select '00000000-0000-0000-0000-00000000000c', id, 'usta' from public.uzmanliklar$$, 'a worker cannot make themself an Usta');
 
 -- manager sends it back
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
@@ -101,20 +102,24 @@ select pg_temp.expect(public.step_action(:'added', 'finish') = 'done', 'a manage
 
 -- a Çırak is treated like a Kalfa; an Usta's finish counts at once
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
-insert into public.seviyeler (user_id, seviye) values ('00000000-0000-0000-0000-00000000000c', 'cirak');
+update public.step_types set uzmanlik_id = (select id from public.uzmanliklar where name = 'Kaynakçı') where name = 'Onaysız iş';
+update public.profiles set bolum_id = (select id from public.bolumler where kod = 'imalat') where id = '00000000-0000-0000-0000-00000000000c';
+insert into public.kisi_uzmanliklari (user_id, uzmanlik_id, seviye)
+select '00000000-0000-0000-0000-00000000000c', id, 'cirak' from public.uzmanliklar where name = 'Kaynakçı';
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c"}', false);
-select pg_temp.expect((select count(*) from public.seviyeler) = 0, 'a worker cannot see levels, not even their own');
+select pg_temp.expect((select count(*) from public.kisi_uzmanliklari) = 0, 'a worker cannot see levels, not even their own');
 select pg_temp.expect(public.step_action(:'usta_step', 'finish') = 'review', 'a Çırak''s finish waits for approval too');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
 select pg_temp.expect(public.step_action(:'usta_step', 'reject', null, 'Tekrar') = 'active', 'manager sends it back');
-select pg_temp.expect(pg_temp.affected($$update public.seviyeler set seviye = 'usta' where user_id = '00000000-0000-0000-0000-00000000000c'$$) = 1,
+select pg_temp.expect(pg_temp.affected($$update public.kisi_uzmanliklari set seviye = 'usta' where user_id = '00000000-0000-0000-0000-00000000000c'$$) = 1,
   'a manager can make someone an Usta');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c"}', false);
 select pg_temp.expect(public.step_action(:'usta_step', 'finish') = 'done', 'an Usta''s finish counts at once');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
 select pg_temp.expect(public.step_action(:'gated', 'reopen') = 'active', 'a reopened step is in progress again');
 select pg_temp.expect(public.step_action(:'gated', 'reset') = 'waiting', 'and can be reset');
-delete from public.seviyeler;
+delete from public.kisi_uzmanliklari;
+update public.profiles set bolum_id = null where id = '00000000-0000-0000-0000-00000000000c';
 reset role;
 
 \echo ALL APPROVAL TESTS PASSED

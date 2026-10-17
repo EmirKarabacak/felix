@@ -160,6 +160,41 @@ const GLYPHS = {
       </>
     ),
   },
+  doc: {
+    outline: (
+      <>
+        <path d="M7 3.500h6.600L18.500 8.400V19a1.500 1.500 0 0 1-1.500 1.500H7A1.500 1.500 0 0 1 5.500 19V5A1.500 1.500 0 0 1 7 3.500z" />
+        <path d="M13.300 3.700V7.600A1 1 0 0 0 14.300 8.600h4" />
+        <path d="M8.800 12.800h6.400M8.800 16.300h4.600" />
+      </>
+    ),
+  },
+  download: {
+    outline: (
+      <>
+        <path d="M12 4.500v10.300M7.500 10.500l4.500 4.500 4.500-4.500" />
+        <path d="M5 19.500h14" />
+      </>
+    ),
+  },
+  clip: {
+    outline: (
+      <path d="M19.300 11.600l-7.100 7.100a4.500 4.500 0 0 1-6.400-6.400l7.400-7.400a3 3 0 0 1 4.300 4.300l-7.300 7.300a1.500 1.500 0 0 1-2.100-2.100l6.700-6.700" />
+    ),
+  },
+  wrench: {
+    outline: (
+      <path d="M14.700 4.300a4.600 4.600 0 0 0-5.500 6.100L4.400 15.200a1.900 1.900 0 0 0 2.700 2.700l4.800-4.800a4.600 4.600 0 0 0 6.100-5.500l-2.700 2.700-2.400-.4-.4-2.400z" />
+    ),
+  },
+  box: {
+    outline: (
+      <>
+        <path d="M12 3.500l7.800 4.100v8.800L12 20.500l-7.800-4.100V7.600z" />
+        <path d="M4.400 7.700L12 11.800l7.600-4.100M12 11.800v8.500" />
+      </>
+    ),
+  },
 } satisfies Record<string, Glyph>
 
 export type IconName = keyof typeof GLYPHS
@@ -264,18 +299,21 @@ export function Segmented<T extends string>({
   value,
   options,
   onChange,
+  grid = false,
 }: {
   label: string
   value: T
   options: { value: T; label: string }[]
   onChange: (value: T) => void
+  /** Two per row, for four longer labels that would not fit side by side on a phone. */
+  grid?: boolean
 }) {
   return (
     <div className="field">
       <div className="field-label" id={`${label}-seg`}>
         {label}
       </div>
-      <div className="segmented" role="group" aria-labelledby={`${label}-seg`}>
+      <div className={grid ? 'segmented segmented-grid' : 'segmented'} role="group" aria-labelledby={`${label}-seg`}>
         {options.map((o) => (
           <button
             key={o.value}

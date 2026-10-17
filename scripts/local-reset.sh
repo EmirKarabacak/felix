@@ -7,6 +7,7 @@ LOG="${FELIX_LOCAL_LOG:-/tmp/felix-local-stack.log}"
 OLD="$(lsof -ti tcp:54321 -sTCP:LISTEN 2>/dev/null | head -1 || true)"
 [ -n "$OLD" ] && kill "$OLD" 2>/dev/null || true
 "$HERE/local-db.sh" stop >/dev/null 2>&1 || true
+rm -rf "${FELIX_LOCAL_FILES:-/tmp/felix-local-files}"
 "$HERE/local-db.sh" start
 cd "$HERE/.."
 PGURL=postgres://postgres@127.0.0.1:54329/postgres nohup npx tsx scripts/local-stack.ts > "$LOG" 2>&1 &

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { BackToSettings } from '../components/Shell'
 import { EditableList } from '../components/EditableList'
 import { ErrorNote, Icon, Spinner } from '../components/ui'
-import { supabase } from '../lib/supabase'
+import { ONAY_KURALI, supabase } from '../lib/supabase'
 import { useWorkshop, type Workshop } from '../lib/workshop'
 
 /** The two lists projects are built from: project types and step types. */
@@ -51,10 +51,41 @@ export function Turler() {
             const n = new Set(data.projectTypeSteps.filter((s) => s.step_type_id === item.id).map((s) => s.project_type_id)).size
             return n ? `${item.name}: ${n} proje türünden de çıkarılır.` : null
           }}
+          extra={
+            data.ready
+              ? (item) => (
+                  <select
+                    className="input uzmanlik-select"
+                    aria-label={`${item.name} uzmanlığı`}
+                    value={data.stepType(item.id)?.uzmanlik_id ?? ''}
+                    onChange={(e) => {
+                      const value = e.target.value || null
+                      void change(() => supabase.from('step_types').update({ uzmanlik_id: value }).eq('id', item.id))
+                    }}
+                  >
+                    <option value="">Uzmanlık yok</option>
+                    {data.uzmanliklar.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    ))}
+                  </select>
+                )
+              : undefined
+          }
           onCreate={(name) => change(() => supabase.from('step_types').insert({ name }))}
           onRename={(item, name) => change(() => supabase.from('step_types').update({ name }).eq('id', item.id))}
           onDelete={(item) => change(() => supabase.from('step_types').delete().eq('id', item.id))}
         />
+        {data.ready ? (
+          <>
+            <div className="hint">
+              Önerilen uzmanlık: adıma kişi atarken bu uzmanlıktaki kişiler üstte görünür. Uzmanlığı olmayan adımları
+              Personel bitirince iş her zaman onay bekler.
+            </div>
+            <div className="hint">{ONAY_KURALI}</div>
+          </>
+        ) : null}
       </section>
     </div>
   )

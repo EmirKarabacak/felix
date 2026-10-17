@@ -1,13 +1,16 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { TalepList } from '../components/Talepler'
 import { Timeline } from '../components/Timeline'
 import { Dialog, ErrorNote, Field, Icon, Spinner } from '../components/ui'
 import { useProfile } from '../lib/auth'
 import { friendly } from '../lib/errors'
 import { canManage, supabase } from '../lib/supabase'
 import {
+  canHandleTalep,
   formatDay,
   formatMoment,
+  isOpen,
   isFinished,
   isLate,
   shownStatus,
@@ -66,7 +69,13 @@ export function Projeler() {
     active.sort(byDue)
     finished.sort((a, b) => b.created_at.localeCompare(a.created_at))
     const open = data.steps.filter((s) => s.status !== 'done')
+    // Requests go to whoever handles them: the managers, Satın alma, Tasarım.
+    const talepler = data.talepler.filter((t) => isOpen(t) && canHandleTalep(data, me, t))
+    const withTalep = new Set(data.talepler.filter(isOpen).map((t) => t.step_id))
     return {
+      talepler: talepler.sort((a, b) => a.created_at.localeCompare(b.created_at)),
+      // A problem waiting on a request is shown with the request instead.
+      shownProblems: open.filter((s) => s.status === 'problem' && !withTalep.has(s.id)),
       active,
       finished,
       nActiveSteps: open.filter((s) => s.status === 'active').length,
@@ -76,7 +85,7 @@ export function Projeler() {
         .filter((s) => s.status === 'review')
         .sort((a, b) => (a.submitted_at ?? '').localeCompare(b.submitted_at ?? '')),
     }
-  }, [data])
+  }, [data, me])
 
   if (!data || !view) {
     return (
@@ -130,11 +139,18 @@ export function Projeler() {
         </div>
       ) : null}
 
-      {view.problems.length > 0 ? (
+      {view.talepler.length > 0 ? (
+        <section className="stack" aria-label="Açık talepler">
+          <h3>Açık talepler</h3>
+          <TalepList talepler={view.talepler} where label="Açık talepler" />
+        </section>
+      ) : null}
+
+      {view.shownProblems.length > 0 ? (
         <section className="stack" aria-label="Bildirilen sorunlar">
           <h3>Atölyeden bildirilen sorunlar</h3>
           <div className="card rows problems">
-            {view.problems.map((s) => {
+            {view.shownProblems.map((s) => {
               const project = data.project(s.project_id)
               const who = data.assigneesOf(s.id).map((p) => p.full_name).join(', ')
               return (

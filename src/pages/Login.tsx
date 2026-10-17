@@ -86,7 +86,7 @@ export function Login({ notice }: { notice: string | null }) {
           </button>
         </form>
         <div className="foot">
-          Hesabınız yok mu veya şifrenizi mi unuttunuz? Yöneticinize söyleyin, hesapları yönetici oluşturur.
+          Hesabınız yok mu veya şifrenizi mi unuttunuz? Genel Müdür veya IT'ye söyleyin, hesapları onlar oluşturur.
         </div>
       </div>
     </div>

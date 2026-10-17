@@ -7,7 +7,9 @@
 //   PGURL=postgres://postgres@127.0.0.1:54329/postgres npx tsx scripts/local-stack.ts
 
 import { createHmac, randomUUID } from 'node:crypto'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import { dirname, join } from 'node:path'
 import pg from 'pg'
 
 const PORT = Number(process.env.STACK_PORT ?? 54321)
@@ -53,10 +55,14 @@ const CORS = {
   'Access-Control-Expose-Headers': 'Content-Range',
 }
 
-async function readBody(req: IncomingMessage): Promise<Json> {
+async function readRaw(req: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = []
   for await (const c of req) chunks.push(c as Buffer)
-  const raw = Buffer.concat(chunks).toString()
+  return Buffer.concat(chunks)
+}
+
+async function readBody(req: IncomingMessage): Promise<Json> {
+  const raw = (await readRaw(req)).toString()
   return raw ? JSON.parse(raw) : {}
 }
 
@@ -267,12 +273,69 @@ async function rest(req: IncomingMessage, res: ServerResponse, path: string, que
   }
 }
 
+
+// Storage: files are kept on disk; who may upload or download is decided by
+// the real storage.objects policies, run as the caller.
+const FILES = process.env.FELIX_LOCAL_FILES ?? '/tmp/felix-local-files'
+
+async function storage(req: IncomingMessage, res: ServerResponse, path: string, query: URLSearchParams) {
+  const claims = claimsOf(req)
+  try {
+    const signed = path.match(/^\/object\/sign\/([a-z0-9_-]+)\/(.+)$/)
+    if (signed && req.method === 'GET') {
+      const [, bucket, name] = signed
+      const c = verify(String(query.get('token') ?? ''))
+      if (!c || c.url !== `${bucket}/${name}`) return send(res, 400, { statusCode: '400', error: 'InvalidJWT', message: 'invalid signature' })
+      const file = readFileSync(join(FILES, bucket, name))
+      const download = query.get('download')
+      res.writeHead(200, {
+        ...CORS,
+        'Content-Type': 'application/octet-stream',
+        ...(download !== null ? { 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(download || name)}` } : {}),
+      })
+      return res.end(file)
+    }
+    if (signed && req.method === 'POST') {
+      const [, bucket, name] = signed
+      const body = await readBody(req)
+      const { rows } = await asCaller(claims, (c) =>
+        c.query('select 1 from storage.objects where bucket_id = $1 and name = $2', [bucket, name]),
+      )
+      if (!rows.length) return send(res, 400, { statusCode: '404', error: 'not_found', message: 'Object not found' })
+      const token = sign({ url: `${bucket}/${name}`, exp: Math.floor(Date.now() / 1000) + Number(body.expiresIn ?? 60) })
+      return send(res, 200, { signedURL: `/object/sign/${bucket}/${name}?token=${token}` })
+    }
+    const upload = path.match(/^\/object\/([a-z0-9_-]+)\/(.+)$/)
+    if (upload && req.method === 'POST') {
+      const [, bucket, name] = upload
+      const bytes = await readRaw(req)
+      await asCaller(claims, (c) =>
+        c.query('insert into storage.objects (bucket_id, name, owner_id, metadata) values ($1, $2, $3, $4)', [
+          bucket,
+          name,
+          claims.sub ?? null,
+          JSON.stringify({ size: bytes.length, mimetype: req.headers['content-type'] }),
+        ]),
+      )
+      const target = join(FILES, bucket, name)
+      mkdirSync(dirname(target), { recursive: true })
+      writeFileSync(target, bytes)
+      return send(res, 200, { Key: `${bucket}/${name}`, Id: randomUUID() })
+    }
+    send(res, 404, { message: `local stack: unsupported storage call ${req.method} ${path}` })
+  } catch (e: any) {
+    const denied = e.code === '42501' || /row-level security/.test(e.message)
+    send(res, denied ? 403 : 400, { statusCode: denied ? '403' : '400', error: denied ? 'Unauthorized' : 'Error', message: e.message })
+  }
+}
+
 createServer(async (req, res) => {
   try {
     if (req.method === 'OPTIONS') return send(res, 204)
     const url = new URL(req.url ?? '/', `http://127.0.0.1:${PORT}`)
     if (url.pathname.startsWith('/auth/v1')) return await auth(req, res, url.pathname.slice(8), url.searchParams)
     if (url.pathname.startsWith('/rest/v1')) return await rest(req, res, url.pathname.slice(8), url.searchParams)
+    if (url.pathname.startsWith('/storage/v1')) return await storage(req, res, url.pathname.slice(11), url.searchParams)
     if (url.pathname === '/api/setup' || url.pathname === '/api/users') {
       const reply = await run(url.pathname === '/api/setup' ? handleSetup : handleUsers, {
         method: req.method ?? 'GET',

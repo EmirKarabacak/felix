@@ -19,55 +19,77 @@ their phones and press start / finish / report a problem.
 
 ## Decisions already made (do not reopen without asking Emir)
 
-- Three panels. CEO: everything. Yönetici (manager): same as CEO except adding
-  or removing people. Personel (worker; "İşçi" was felt to be rude): own jobs
-  plus every project read-only. Tabs: CEO Projeler / Ekip / Ayarlar; managers
-  İşlerim / Projeler / Ekip / Ayarlar; Personel İşlerim / Projeler / Ayarlar.
-- Hidden levels for Personel: Usta, Kalfa, Çırak (table `seviyeler`, a missing
-  row counts as Kalfa). Only the CEO and managers see them, enforced in the
-  database; Personel never see anyone's level, not even their own. Emir found
-  visible titles rude, so they stay hidden. Meslek türleri were removed.
-- Only the CEO changes usernames (anyone's, including their own); done through
-  `PATCH /api/users`, which also moves the sign-in e-mail.
+- Four roles (0008). Genel Müdür (the owner) and IT (Emir) both have every
+  right; in the database both are panel 'ceo' and `profiles.unvan` says which
+  ('genel_mudur' / 'it'), because a new enum value cannot be used in the same
+  transaction. There must always be one active Genel Müdür and, once one
+  exists, one active IT. Bölüm Sorumlusu (panel 'manager', formerly Yönetici,
+  same rights as before: everything except adding/removing people and changing
+  usernames). Personel (panel 'worker'; "İşçi" was felt to be rude): own jobs
+  plus every project read-only. Tabs: Genel Müdür/IT Projeler / Ekip / Ayarlar;
+  Bölüm Sorumlusu İşlerim / Projeler / Ekip / Ayarlar; Personel İşlerim /
+  Projeler / Ayarlar. Emir wants proposed names shown to him before use.
+- Bölümler are a fixed list of four (0008, `bolumler.kod`): Satın alma,
+  Tasarım, İmalat, Muhasebe. Nobody edits it in the app. Genel Müdür and IT
+  have no bölüm; a Bölüm Sorumlusu picks only the bölüm they lead (no uzmanlık,
+  no level); Personel pick a bölüm. One bölüm per person for now: Emir asked to
+  be reminded later that people may need several.
+- Uzmanlık (only in İmalat): an editable list (Ayarlar > Uzmanlıklar, table
+  `uzmanliklar`), started with only Kaynakçı and Elektrikçi. A Personel in
+  İmalat can have several, each with its own hidden level Usta / Kalfa / Çırak
+  (`kisi_uzmanliklari`, new ticks start at Kalfa). Levels are visible only to
+  Genel Müdür, IT and Bölüm Sorumluları, enforced in the database; Personel
+  never see anyone's level, not even their own (Emir found visible titles rude).
+- Each step type has a suggested uzmanlık (Türler). The assign list puts people
+  with that uzmanlık first, best level first.
+- Approval rule (0008, in `step_action`): the finisher's level in the step's
+  uzmanlık decides. Usta: done at once. Otherwise "Onay bekliyor" until a Bölüm
+  Sorumlusu/Genel Müdür/IT approves or sends it back with a required note.
+  Personel outside İmalat, without that uzmanlık, or on a step with no
+  uzmanlık ALWAYS wait. Genel Müdür, IT and Bölüm Sorumluları never wait. The
+  finish time is the worker's hand-in time. The Turkish rule text Emir approved
+  is `ONAY_KURALI` in `src/lib/supabase.ts`.
+- Genel Müdür and IT change usernames (anyone's, including their own) through
+  `PATCH /api/users`, which also moves the sign-in e-mail, and add or remove
+  people (accounts are username + password, no e-mail). Login form has "Beni
+  hatırla" (on by default).
 - Ayarlar (gear tab) for everyone: account, password, Beni hatırla, home-screen
-  guide, sign out. CEO and managers also find the lists there: Firmalar,
-  Türler, Bölümler.
-- Accounts are created by the CEO only, with username + password (no e-mail
-  needed). Login form has "Beni hatırla" (on by default).
+  guide, sign out. Genel Müdür, IT and Bölüm Sorumluları also find the lists
+  there: Firmalar, Türler, Uzmanlıklar.
 - Removing a person deactivates them (name stays on past work), frees the
-  username, and takes them off unfinished steps. There must always be one CEO.
+  username, and takes them off unfinished steps.
 - Project types fill a new project's steps; steps can be added, removed and
-  reordered afterwards. Step types, project types and bölümler are lists
-  the CEO and managers edit in the app.
+  reordered afterwards.
 - A step can have several people. Any step can be started at any time (no
   enforced order). One assignee pressing finish finishes it for everyone.
-- Approval is by level only (0007; the old per-step "Onay gerekir" switches are
-  gone, `steps.needs_approval` is no longer read). An Usta's finish is final;
-  a Kalfa's or Çırak's finish waits ("Onay bekliyor") until a manager approves
-  or sends it back with a required note. The CEO's and managers' own finish
-  needs no approval. The finish time is the worker's hand-in time. Kalfa and
-  Çırak behave the same; Çırak only helps when choosing who to assign.
-- Companies (Firmalar): name visible to everyone; contact details (person,
-  phone, e-mail, address, note) visible to CEO and managers only, enforced in
-  the database. Deleting a company keeps its projects.
+- Companies (Firmalar): name visible to everyone; contact details visible to
+  Genel Müdür, IT and Bölüm Sorumluları only, enforced in the database.
+  Deleting a company keeps its projects.
 - Projeler has two views: Liste (cards) and Takvim (projects as bars from
   opening to delivery date, step due dates as dots, line for today).
-- Bölümler: one editable list (table `bolumler`, 0007) holding workshops and
-  office departments alike (Elektrik atölyesi, Kaynak atölyesi, Tasarım, Satın
-  alma, Muhasebe...). It replaced 0006's fixed enum plus atölye list, because
-  Emir could add workshops but not departments. CEO and managers edit the list
-  and set someone's bölüm. Later each bölüm gets feature switches (e.g. "can
-  upload drawings") when Çizimler and Talepler are built. One bölüm per person
-  for now: Emir asked to be reminded later that people may need several.
-- Agreed next, in order: Çizimler (design uploads a PDF to view plus the
-  original AutoCAD/SolidWorks file; originals only for CEO, managers, Tasarım;
-  a worker sees a project's PDF only while assigned to a step on it, with their
-  name printed on it, no download; each upload a new revision), then Talepler
-  ("Sorun bildir → Malzeme eksik" with typed material and quantity goes to Satın
-  alma: needed, ordered, arrived; "Çizim hatalı" goes to Tasarım). Talepler are
-  shown inside İşlerim; CEO and managers see every request (a box on Projeler
-  and a mark on the step) and can mark them ordered / arrived. Muhasebe is
-  parked; Emir wants only the CEO to see invoices and payments, as two sections.
+- Talepler (0008, `talepler`, functions `sorun_bildir` and `talep_action`):
+  "Sorun bildir → Malzeme eksik" asks for the material (required) and quantity
+  and opens a request for all Bölüm Sorumluları and Satın alma; states Açık →
+  Sipariş verildi → Geldi. "Çizim hatalı" opens one for Tasarım (→ Düzeltildi).
+  Anyone who can handle one presses "Ben ilgileniyorum" and everyone sees "X
+  ilgileniyor". Shown in İşlerim (to handlers, and to the reporter until a week
+  after it closes), in an "Açık talepler" box on Projeler and as a mark on the
+  step. The step itself stays "Sorun bildirildi" until someone presses "Sorun
+  çözüldü, devam et".
+- Dosyalar (0008, replaces the earlier locked-down Çizimler plan; Emir: "dont
+  focus on the safety just yet"). Each project has one Ana doküman plus any
+  number of project files (certificates...); each step has its own files.
+  Project files: only Genel Müdür, IT, Bölüm Sorumluları and Tasarım add,
+  replace or delete. Step files: everyone adds, those four groups delete.
+  Everyone downloads current files. Re-uploading a name works like the Mac:
+  "plan (2).pdf" becomes current and the earlier one goes to Eski sürümler,
+  which only those four groups open. Deleting moves to Eski sürümler too;
+  nothing is erased. Files are in the private Storage bucket `dosyalar` under
+  `p/<project>/<uuid>` or `s/<step>/<uuid>`; names live in table `dosyalar`.
+- Felix reloads itself when a new version is deployed (`src/lib/update.ts`,
+  `/version.json` written by `vite.config.ts`).
+- Muhasebe is parked; Emir wants only the Genel Müdür to see invoices and
+  payments, as two sections. The Genel Müdür phone summary screen is on hold.
 - Chat, when built, goes on projects (one conversation per project), visible to
   workers too. The "Sorun bildir" button stays and should also post into the
   project chat.
@@ -95,7 +117,7 @@ SwiftUI's ConcentricRectangle):
 | Part | Where | Notes |
 | --- | --- | --- |
 | Screens | `src/` | React + TypeScript + Vite |
-| Server endpoints | `api/` | Vercel functions: first-time setup, add/reset/remove people (service-role key, CEO only) |
+| Server endpoints | `api/` | Vercel functions: first-time setup, add/reset/remove people (service-role key, Genel Müdür and IT only) |
 | Database | `supabase/migrations/` | Postgres on Supabase; access rules (RLS) and all status changes (`step_action`) live here |
 | Shared | `shared/` | Username rules used by both sides |
 
@@ -108,9 +130,9 @@ SwiftUI's ConcentricRectangle):
   in the Supabase SQL Editor (copy from GitHub, paste, Run). So every migration
   must be safe to run more than once and must also work as one transaction.
   Push the front end so it still works before he has run the new file, and tell
-  him clearly which file to run. He has run 0001 to 0005; 0006_bolumler.sql and
-  0007_seviye_ve_bolum_listesi.sql are new (0007 works whether or not 0006 was
-  run, so if 0006 was skipped he only needs 0007).
+  him clearly which file to run. He has run 0001 to 0007;
+  0008_uzmanlik_talepler_dosyalar.sql is new (it also creates the Storage
+  bucket and its access rules).
   `src/lib/supabase.ts` `fetchProfiles` shows the pattern for working before a
   migration has run (fall back, hide the feature).
 - Data loads in `src/lib/workshop.tsx` (one provider, refreshes every 30 s and
@@ -120,15 +142,15 @@ SwiftUI's ConcentricRectangle):
 
 The build machine could not reach Supabase, so tests run against a local
 stand-in (`scripts/local-stack.ts`: real Postgres with the real migrations and
-access rules, plus just enough of Supabase's auth and data API).
+access rules, plus just enough of Supabase's auth, data and storage API).
 
 ```
-./supabase/tests/run.sh                                 # database access rules (153 checks)
-scripts/local-up.sh && node scripts/e2e-stage1.mjs      # sign-in, panels, Ekip, usernames, Ayarlar (35)
+./supabase/tests/run.sh                                 # database access rules (221 checks)
+scripts/local-up.sh && node scripts/e2e-stage1.mjs      # sign-in, roles, Ekip, uzmanlık, usernames, Ayarlar (47)
 scripts/local-up.sh && node scripts/e2e-stage2.mjs      # projects, steps, workers (49)
 scripts/local-up.sh && node scripts/e2e-companies.mjs   # Firmalar (23)
-scripts/local-up.sh && node scripts/e2e-approval.mjs    # approval by level, Takvim (29)
-FELIX_MIGRATIONS_UNTIL=0006 scripts/local-up.sh && node scripts/e2e-bolumler.mjs  # Bölümler list, levels, runs 0007 mid-test (34)
+scripts/local-up.sh && node scripts/e2e-approval.mjs    # approval by uzmanlık level, Takvim (31)
+FELIX_MIGRATIONS_UNTIL=0007 scripts/local-up.sh && node scripts/e2e-0008.mjs  # runs 0008 mid-test; Uzmanlık, Talepler, Dosyalar (42)
 ```
 
 Run them all before pushing, and check that each one actually printed "ALL ...
@@ -137,25 +159,25 @@ the screenshots, desktop and phone width.
 
 ## Status and what is next
 
-Done: sign-in and panels, Ekip, Türler (project and step
-types), projects with steps and assigning, start / finish / problems,
-approval, Firmalar, Takvim, keyboard handling on phones, icons, Bölümler list
-(Ekip and the assign list grouped by bölüm), hidden levels with approval by
-level, Personel wording, CEO-only username changes, İşlerim for managers,
-Ayarlar.
+Done: sign-in and roles (Genel Müdür, IT, Bölüm Sorumlusu, Personel), Ekip,
+Türler (project and step types, with a suggested uzmanlık), projects with steps
+and assigning, start / finish / problems, approval by uzmanlık level, Firmalar,
+Takvim, keyboard handling on phones, icons, the four fixed bölümler, Uzmanlık,
+Talepler, Dosyalar (project and step files with Eski sürümler), self-reload on
+a new version, İşlerim for managers, Ayarlar.
 
 Agreed but not built yet (stage 3):
-- Chat on each project.
 - Notifications: a bell in the app plus phone alerts (web push; iPhones need
-  Felix added to the home screen first).
-- Drawings and photos on steps (Supabase Storage).
+  Felix added to the home screen first). Next after 0008, when Emir says so.
+- Chat on each project.
 - Time and history view per step (the data is already recorded in
   `step_events`, `started_at`, `finished_at`).
 - Workload view: what each worker has this week.
+- Later idea from Emir: a Kılavuz (manuals, e.g. welding parameters) per bölüm.
 
 Open questions to Emir:
 - Does Takvim need a zoomed-out option to show more months?
 
 Ideas discussed, not agreed: duplicate a project, planned durations per step
-type (fill due dates from the delivery date), files on a project, checklists
+type (fill due dates from the delivery date), checklists
 inside a step, materials per step, Excel export, dashboard.

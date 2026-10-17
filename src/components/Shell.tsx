@@ -11,8 +11,9 @@ const PROJELER: Tab = { to: '/projeler', label: 'Projeler', icon: 'folder' }
 const EKIP: Tab = { to: '/ekip', label: 'Ekip', icon: 'people' }
 const AYARLAR: Tab = { to: '/ayarlar', label: 'Ayarlar', icon: 'gear' }
 
-// The daily screens only; lists set up once (Firmalar, Türler, Bölümler) live
-// in Ayarlar. The CEO hands out work rather than receiving it, so has no İşlerim.
+// The daily screens only; lists set up once (Firmalar, Türler, Uzmanlıklar)
+// live in Ayarlar. Genel Müdür and IT ('ceo') hand out work rather than
+// receiving it, so have no İşlerim.
 const TABS: Record<Panel, Tab[]> = {
   ceo: [PROJELER, EKIP, AYARLAR],
   manager: [ISLERIM, PROJELER, EKIP, AYARLAR],

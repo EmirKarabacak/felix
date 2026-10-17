@@ -39,7 +39,7 @@ async function signIn(p, username, password) {
 }
 const nav = (p, label) => p.locator('.topnav a, .tabbar a').filter({ hasText: label }).locator('visible=true').first().click()
 const dialog = (p) => p.getByRole('dialog')
-/** Firmalar, Türler and Bölümler are reached through Ayarlar. */
+/** Firmalar, Türler and Uzmanlıklar are reached through Ayarlar. */
 async function openList(p, label) {
   await nav(p, 'Ayarlar')
   await p.locator('a.link-row', { hasText: label }).click()
@@ -56,18 +56,25 @@ await page.getByLabel('Kurulum kodu').fill('kurulum')
 await page.getByLabel('Ad soyad').fill('Emir Karabacak')
 await page.getByLabel('Kullanıcı adı').fill('emir')
 await page.getByLabel('Şifre').fill('emir1234')
-await page.getByRole('button', { name: 'CEO hesabını oluştur' }).click()
+await page.getByRole('button', { name: 'Genel Müdür hesabını oluştur' }).click()
 await page.getByRole('heading', { name: 'Projeler' }).waitFor()
-ok('a signed-in CEO lands on Projeler')
+ok('a signed-in Genel Müdür lands on Projeler')
 const made = await page.evaluate(async () => {
   const key = Object.keys(localStorage).find((k) => k.endsWith('-auth-token'))
   const token = JSON.parse(localStorage.getItem(key)).access_token
-  const add = (body) =>
-    fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) }).then((r) => r.status)
+  const auth = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+  const add = (body) => fetch('/api/users', { method: 'POST', headers: auth, body: JSON.stringify(body) }).then((r) => r.status)
+  const rest = (path, init) => fetch(`http://127.0.0.1:54321/rest/v1/${path}`, { headers: auth, ...init }).then((r) => (r.status === 204 ? null : r.json()))
+  // Approval is tested elsewhere: here both workers are Kaynakçı Usta in
+  // İmalat and every step type is a Kaynakçı step, so their finish counts at once.
+  const [imalat] = await rest('bolumler?select=id&kod=eq.imalat')
+  const [kaynak] = await rest('uzmanliklar?select=id&name=eq.Kaynakçı')
+  await rest('step_types?uzmanlik_id=is.null', { method: 'PATCH', body: JSON.stringify({ uzmanlik_id: kaynak.id }) })
+  const usta = { bolum_id: imalat.id, uzmanliklar: [{ uzmanlik_id: kaynak.id, seviye: 'usta' }] }
   return [
     await add({ full_name: 'Selim Ateş', username: 'selim', password: 'selim123', panel: 'manager' }),
-    await add({ full_name: 'Ahmet Yılmaz', username: 'ahmet', password: 'ahmet123', panel: 'worker', seviye: 'usta' }),
-    await add({ full_name: 'Murat Kaya', username: 'murat', password: 'murat123', panel: 'worker', seviye: 'usta' }),
+    await add({ full_name: 'Ahmet Yılmaz', username: 'ahmet', password: 'ahmet123', panel: 'worker', ...usta }),
+    await add({ full_name: 'Murat Kaya', username: 'murat', password: 'murat123', panel: 'worker', ...usta }),
   ].join(',')
 })
 expect(made === '200,200,200', 'test people created')
@@ -194,11 +201,11 @@ ok('the worker can start a step')
 expect(await dialog(ahmet).getByRole('button', { name: 'Adımı kaldır' }).count() === 0 && await dialog(ahmet).getByLabel('Bitiş tarihi').count() === 0, 'the worker gets no manager controls')
 await dialog(ahmet).getByRole('button', { name: 'Sorun bildir' }).click()
 expect(await dialog(ahmet).getByRole('button', { name: 'Sorunu bildir' }).isDisabled(), 'a problem cannot be sent without choosing what it is')
-await dialog(ahmet).getByRole('button', { name: 'Malzeme eksik' }).click()
-await dialog(ahmet).getByLabel('Not (isteğe bağlı)').fill('DN50 flanş gelmedi')
+await dialog(ahmet).getByRole('button', { name: 'Makine arızası' }).click()
+await dialog(ahmet).getByLabel('Not (isteğe bağlı)').fill('Kaynak makinesi arızalı')
 await ahmet.screenshot({ path: `${SHOTS}/26-sorun-telefon.png` })
 await dialog(ahmet).getByRole('button', { name: 'Sorunu bildir' }).click()
-await dialog(ahmet).locator('.note-warn', { hasText: 'DN50 flanş gelmedi' }).waitFor()
+await dialog(ahmet).locator('.note-warn', { hasText: 'Kaynak makinesi arızalı' }).waitFor()
 ok('the worker can report a problem with a note')
 await closeDialog(ahmet)
 await ahmet.locator('section[aria-label="Sorun bildirilenler"] button.job', { hasText: 'Borulama' }).waitFor()
@@ -207,7 +214,7 @@ ok('the reported step moves to the top group')
 // ---- manager sees the problem and resolves it ----
 await nav(page, 'Projeler')
 await page.reload()
-await page.locator('.problem', { hasText: 'DN50 flanş gelmedi' }).waitFor()
+await page.locator('.problem', { hasText: 'Kaynak makinesi arızalı' }).waitFor()
 expect((await page.locator('.tile', { hasText: 'Açık sorun' }).locator('.tile-value').innerText()) === '1', 'the manager board counts the open problem')
 expect((await page.locator('.problem').innerText()).includes('Ahmet Yılmaz'), 'and says who is on the step')
 await page.screenshot({ path: `${SHOTS}/27-projeler.png`, fullPage: true })
@@ -310,7 +317,7 @@ await selim.getByRole('button', { name: 'Yeni proje' }).waitFor()
 expect((await selim.locator('.topnav a').allInnerTexts()).join('|') === 'İşlerim|Projeler|Ekip|Ayarlar', 'a manager gets İşlerim, Projeler, Ekip and Ayarlar')
 await nav(selim, 'Ayarlar')
 await selim.locator('a.link-row').first().waitFor()
-expect((await selim.locator('a.link-row .link-label').allInnerTexts()).join('|') === 'Firmalar|Türler|Bölümler', 'a manager finds Firmalar, Türler and Bölümler in Ayarlar')
+expect((await selim.locator('a.link-row .link-label').allInnerTexts()).join('|') === 'Firmalar|Türler|Uzmanlıklar', 'a manager finds Firmalar, Türler and Uzmanlıklar in Ayarlar')
 await selim.locator('a.link-row', { hasText: 'Türler' }).click()
 await selim.locator('.type-row', { hasText: 'RO Ünitesi' }).waitFor()
 await selim.getByRole('link', { name: 'Ayarlar' }).first().waitFor()

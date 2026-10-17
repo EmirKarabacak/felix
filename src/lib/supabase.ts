@@ -52,22 +52,28 @@ export const supabase = createClient(url ?? 'http://localhost', anonKey ?? 'miss
 
 export type Panel = 'ceo' | 'manager' | 'worker'
 
+/** Which of the two "everything" roles a 'ceo' panel person is (0008). */
+export type Unvan = 'genel_mudur' | 'it'
+
 export type Profile = {
   id: string
   full_name: string
   username: string
   panel: Panel
+  /** 'genel_mudur' or 'it' for the 'ceo' panel, otherwise null. Null for everyone until 0008 has run. */
+  unvan: Unvan | null
   active: boolean
   /** Null for people without a bölüm, and for everyone until 0007 has been run. */
   bolum_id: string | null
 }
 
-/** A bölüm (department or workshop): a list the workshop edits itself. */
-export type Bolum = { id: string; name: string }
+/** The four fixed bölümler (0008). Before 0008 the list was editable and had no code. */
+export type BolumKod = 'satinalma' | 'tasarim' | 'imalat' | 'muhasebe'
+export type Bolum = { id: string; name: string; kod: BolumKod | null }
 
 /**
- * How experienced a Personel is. Seen only by the CEO and managers. Kalfa and
- * Çırak work the same way (their finish waits for approval); an Usta's does not.
+ * How experienced a Personel is in one uzmanlık. Seen only by Genel Müdür, IT
+ * and Bölüm Sorumluları. Only an Usta's finish counts at once.
  */
 export type Seviye = 'usta' | 'kalfa' | 'cirak'
 
@@ -79,8 +85,12 @@ export const SEVIYE_LABEL: Record<Seviye, string> = {
   cirak: 'Çırak',
 }
 
-/** A Personel without a stored level counts as Kalfa, as in the database. */
+/** A newly ticked uzmanlık starts at Kalfa, as in the database. */
 export const DEFAULT_SEVIYE: Seviye = 'kalfa'
+
+/** Shown wherever levels and step types' uzmanlık are set. Emir's wording. */
+export const ONAY_KURALI =
+  'Onay kuralı: Bir adımı bitiren kişinin, o adımın uzmanlığındaki seviyesi geçerlidir. Kaynakta Usta olan biri kaynak adımını bitirince iş hemen biter. Aynı kişi elektrik adımını bitirirse ve elektrikte Çırak ise ya da hiç Elektrikçi uzmanlığı yoksa, iş yönetici onayını bekler.'
 
 const PROFILE_COLUMNS = 'id, full_name, username, panel, active'
 
@@ -88,9 +98,15 @@ const isMissingColumn = (error: { code?: string; message?: string } | null) =>
   !!error && (error.code === '42703' || /column .* does not exist/i.test(error.message ?? ''))
 
 /**
- * Reads people. Until 0007 has been run the bölüm column does not exist; the
- * app then reads without it and reports bolumReady: false, so it keeps working
- * and simply hides bölümler and levels.
+ * Which database updates have been run: 7 after 0007 (bölümler), 8 after 0008
+ * (Genel Müdür and IT, Uzmanlık, Talepler, Dosyalar), 0 before either.
+ */
+export type DbStage = 0 | 7 | 8
+
+/**
+ * Reads people. Before a migration has run its columns do not exist; the app
+ * then reads without them and reports the stage, so it keeps working and
+ * simply hides what is not there yet.
  */
 export async function fetchProfiles(only: { id?: string; active?: boolean } = {}) {
   const query = (columns: string) => {
@@ -99,20 +115,45 @@ export async function fetchProfiles(only: { id?: string; active?: boolean } = {}
     if (only.active) q = q.eq('active', true)
     return q.order('full_name')
   }
-  const full = await query(`${PROFILE_COLUMNS}, bolum_id`)
+  const full = await query(`${PROFILE_COLUMNS}, bolum_id, unvan`)
   if (!isMissingColumn(full.error)) {
-    return { data: full.data as unknown as Profile[] | null, error: full.error, bolumReady: true }
+    return { data: full.data as unknown as Profile[] | null, error: full.error, stage: 8 as DbStage }
+  }
+  const mid = await query(`${PROFILE_COLUMNS}, bolum_id`)
+  if (!isMissingColumn(mid.error)) {
+    const data = (mid.data as unknown as Omit<Profile, 'unvan'>[] | null)?.map((p) => ({ ...p, unvan: null }))
+    return { data: data ?? null, error: mid.error, stage: 7 as DbStage }
   }
   const basic = await query(PROFILE_COLUMNS)
-  const data = (basic.data as unknown as Omit<Profile, 'bolum_id'>[] | null)?.map((p) => ({ ...p, bolum_id: null }))
-  return { data: data ?? null, error: basic.error, bolumReady: false }
+  const data = (basic.data as unknown as Omit<Profile, 'bolum_id' | 'unvan'>[] | null)?.map((p) => ({
+    ...p,
+    bolum_id: null,
+    unvan: null,
+  }))
+  return { data: data ?? null, error: basic.error, stage: 0 as DbStage }
 }
 
-export const PANEL_LABEL: Record<Panel, string> = {
-  ceo: 'CEO',
-  manager: 'Yönetici',
+/**
+ * The four roles people choose from. Genel Müdür and IT have every right
+ * (the 'ceo' panel); Bölüm Sorumlusu runs the workshop (the 'manager' panel);
+ * Personel do their own jobs.
+ */
+export type Rol = 'genel_mudur' | 'it' | 'manager' | 'worker'
+
+export const ROL_LABEL: Record<Rol, string> = {
+  genel_mudur: 'Genel Müdür',
+  it: 'IT',
+  manager: 'Bölüm Sorumlusu',
   worker: 'Personel',
 }
 
-/** CEO and managers run the workshop; workers see it read-only. */
+export const rolOf = (p: Pick<Profile, 'panel' | 'unvan'>): Rol =>
+  p.panel === 'ceo' ? (p.unvan === 'it' ? 'it' : 'genel_mudur') : p.panel
+
+export const panelOf = (rol: Rol): { panel: Panel; unvan: Unvan | null } =>
+  rol === 'genel_mudur' || rol === 'it' ? { panel: 'ceo', unvan: rol } : { panel: rol, unvan: null }
+
+export const rolLabel = (p: Pick<Profile, 'panel' | 'unvan'>) => ROL_LABEL[rolOf(p)]
+
+/** Genel Müdür, IT and Bölüm Sorumluları run the workshop; Personel see it read-only. */
 export const canManage = (panel: Panel) => panel === 'ceo' || panel === 'manager'
