@@ -98,7 +98,7 @@ export const ONAY_KURALI =
 
 const PROFILE_COLUMNS = 'id, full_name, username, panel, active'
 
-const isMissingColumn = (error: { code?: string; message?: string } | null) =>
+export const isMissingColumn = (error: { code?: string; message?: string } | null) =>
   !!error && (error.code === '42703' || /column .* does not exist/i.test(error.message ?? ''))
 
 /**

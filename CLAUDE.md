@@ -89,7 +89,7 @@ their phones and press start / finish / report a problem.
 - Felix reloads itself when a new version is deployed (`src/lib/update.ts`,
   `/version.json` written by `vite.config.ts`).
 - Muhasebe is parked; Emir wants only the Genel Müdür to see invoices and
-  payments, as two sections. The Genel Müdür phone summary screen is on hold.
+  payments, as two sections. The Genel Müdür phone summary became Özet.
 - Language and theme (Update 1): Ayarlar > "Dil ve görünüm" has Dil (Türkçe /
   English) and Tema (Sistem / Açık / Koyu). Each person's own choice, kept on
   the device (localStorage `felix.lang`, `felix.theme`); defaults Türkçe and
@@ -98,6 +98,21 @@ their phones and press start / finish / report a problem.
   (not Müşteri), "Proje türleri" / "Adım türleri". In English Kalfa is
   "Skilled", Usta "Master", Çırak "Apprentice", Bölüm Sorumlusu "Department
   Head", Personel "Staff".
+- Finish photo (Update 2, 0009): pressing "İşi bitir" opens the camera
+  (`capture="environment"`; a computer offers its files) and the step finishes
+  only once a photo is taken, for EVERYONE, Genel Müdür and IT included (Emir
+  changed this from "everyone but them"). The photo is shrunk in the browser
+  (1600 px JPEG), saved as an ordinary step file "Bitiş fotoğrafı <time>.jpg",
+  and `step_action(..., p_photo_path)` checks it is a new image this person
+  just added to this step. `project_steps.finish_photo_id` is the latest
+  hand-in's photo, shown to the approver; `step_events.dosya_id` keeps each
+  finish's photo in the history.
+- Step history (Update 2): "Geçmiş (n)" at the bottom of the step window,
+  closed at first, read from `step_events`, oldest first, with photos.
+- Özet (Update 2): a tab for Genel Müdür and IT only, after Projeler (they
+  still start on Projeler, "keep everything same"): late projects (past their
+  delivery date), open problems, jobs awaiting approval, open requests, jobs
+  finished this week (from Monday).
 - Chat, when built, goes on projects (one conversation per project), visible to
   workers too. The "Sorun bildir" button stays and should also post into the
   project chat.
@@ -161,7 +176,9 @@ SwiftUI's ConcentricRectangle):
   must be safe to run more than once and must also work as one transaction.
   Push the front end so it still works before he has run the new file, and tell
   him clearly which file to run. He has run 0001 to 0008
-  (0008 also created the Storage bucket and its access rules). The Supabase
+  (0008 also created the Storage bucket and its access rules);
+  0009_bitis_fotografi.sql is new (finish photo). Before it runs, finishing
+  needs no photo (`photoReady` in `workshop.tsx`). The Supabase
   connector can be tried for running a migration; it timed out once, so the
   fallback is Emir pasting it.
   `src/lib/supabase.ts` `fetchProfiles` shows the pattern for working before a
@@ -176,19 +193,22 @@ stand-in (`scripts/local-stack.ts`: real Postgres with the real migrations and
 access rules, plus just enough of Supabase's auth, data and storage API).
 
 ```
-./supabase/tests/run.sh                                 # database access rules (221 checks)
+./supabase/tests/run.sh                                 # database access rules
 scripts/local-up.sh && node scripts/e2e-stage1.mjs      # sign-in, roles, Ekip, uzmanlık, usernames, Ayarlar (47)
 scripts/local-up.sh && node scripts/e2e-stage2.mjs      # projects, steps, workers (49)
 scripts/local-up.sh && node scripts/e2e-companies.mjs   # Firmalar (23)
 scripts/local-up.sh && node scripts/e2e-approval.mjs    # approval by uzmanlık level, Takvim (31)
 FELIX_MIGRATIONS_UNTIL=0007 scripts/local-up.sh && node scripts/e2e-0008.mjs  # runs 0008 mid-test; Uzmanlık, Talepler, Dosyalar (42)
+FELIX_MIGRATIONS_UNTIL=0008 scripts/local-up.sh && node scripts/e2e-update2.mjs  # runs 0009 mid-test; finish photo, history, Özet (30)
 scripts/local-up.sh && node scripts/e2e-language.mjs    # English, dark theme, Ayarlar switches, Ekip labels (25)
 npx tsc --noEmit && npx tsx scripts/check-i18n.ts       # types, and every text has English
 ```
 
 Run them all before pushing, and check that each one actually printed "ALL ...
 PASSED" (a loop that only shows the last line can hide a failed run). Look at
-the screenshots, desktop and phone width.
+the screenshots, desktop and phone width. The e2e suites "take" the finish
+photo from `scripts/e2e-photo.mjs` whenever Felix opens the camera; database
+tests use `pg_temp.photo(step)`.
 
 ## Status and what is next
 
@@ -198,19 +218,10 @@ and assigning, start / finish / problems, approval by uzmanlık level, Firmalar,
 Takvim, keyboard handling on phones, icons, the four fixed bölümler, Uzmanlık,
 Talepler, Dosyalar (project and step files with Eski sürümler), self-reload on
 a new version, İşlerim for managers, Ayarlar, English version, dark theme
-(Update 1).
+(Update 1), finish photo, step history, Özet (Update 2).
 
 Agreed order of the next updates; each goes to Emir before going live and
 starts only when he says go:
-- Update 2: (a) Finish photo, like the Lime bike app: "İşi bitir" opens the
-  camera and the job finishes only once a photo is taken. Everyone except
-  Genel Müdür and IT (Bölüm Sorumluları too: "the main reason for the app is
-  to store data"). The photo goes into the step's files and is shown to the
-  approver. (b) Step history inside the step window (`step_events`,
-  `started_at`, `finished_at`). (c) A new "Özet" tab for Genel Müdür and IT
-  only, rest of their app unchanged: late projects, open problems, jobs
-  awaiting approval, open requests, finished this week. This replaces the
-  on-hold phone summary screen.
 - Update 3: chat on each project, seen by everyone; "Sorun bildir" also posts
   into it.
 - Update 4: notifications, a bell plus phone alerts (web push; iPhones need

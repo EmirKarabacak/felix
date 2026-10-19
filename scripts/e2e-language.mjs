@@ -116,7 +116,7 @@ expect((await theme(page)) === null, 'Sistem puts no theme on the page (it follo
 await settings.getByRole('button', { name: 'English' }).click()
 await page.getByRole('heading', { name: 'Settings' }).waitFor()
 const tabs = await page.locator('.topnav a').allInnerTexts()
-expect(JSON.stringify(tabs) === JSON.stringify(['Projects', 'Team', 'Settings']), `tabs in English: ${tabs.join(', ')}`)
+expect(JSON.stringify(tabs) === JSON.stringify(['Projects', 'Overview', 'Team', 'Settings']), `tabs in English: ${tabs.join(', ')}`)
 expect(await page.evaluate(() => document.documentElement.lang) === 'en', 'the page says it is in English')
 const appearance = page.locator('section[aria-label="Language and appearance"]')
 expect(await appearance.getByText('Theme').count() === 1, 'Ayarlar: "Language and appearance" with Theme')

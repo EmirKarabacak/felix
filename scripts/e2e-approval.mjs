@@ -10,6 +10,8 @@ try {
   ;({ chromium } = require('/opt/npm-tools/node_modules/playwright'))
 }
 
+import { photoFile } from './e2e-photo.mjs'
+const PHOTO = photoFile()
 const BASE = process.env.FELIX_URL ?? 'http://127.0.0.1:5173'
 const SHOTS = process.argv[2] ?? '/tmp'
 let step = 0
@@ -22,6 +24,8 @@ function expect(cond, label) {
 const browser = await chromium.launch()
 const problems = []
 function watch(p, name) {
+  // Finishing a step opens the camera (0009): "take" the test photo.
+  p.on('filechooser', (chooser) => void chooser.setFiles(PHOTO))
   p.on('pageerror', (e) => problems.push(`${name} pageerror: ${e.message}`))
   p.on('console', (m) => {
     if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.push(`${name} console: ${m.text()}`)

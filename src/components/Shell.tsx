@@ -8,6 +8,7 @@ import { Icon, type IconName } from './ui'
 // Labels are Turkish, shown through t().
 type Tab = { to: string; label: string; icon: IconName }
 
+const OZET: Tab = { to: '/ozet', label: 'Özet', icon: 'chart' } // i18n-ok
 const ISLERIM: Tab = { to: '/islerim', label: 'İşlerim', icon: 'list' } // i18n-ok
 const PROJELER: Tab = { to: '/projeler', label: 'Projeler', icon: 'folder' }
 const EKIP: Tab = { to: '/ekip', label: 'Ekip', icon: 'people' }
@@ -15,9 +16,9 @@ const AYARLAR: Tab = { to: '/ayarlar', label: 'Ayarlar', icon: 'gear' }
 
 // The daily screens only; lists set up once (Firmalar, Türler, Uzmanlıklar)
 // live in Ayarlar. Genel Müdür and IT ('ceo') hand out work rather than
-// receiving it, so have no İşlerim.
+// receiving it, so have no İşlerim; Özet sums up the workshop for them.
 const TABS: Record<Panel, Tab[]> = {
-  ceo: [PROJELER, EKIP, AYARLAR],
+  ceo: [PROJELER, OZET, EKIP, AYARLAR],
   manager: [ISLERIM, PROJELER, EKIP, AYARLAR],
   worker: [ISLERIM, PROJELER, AYARLAR],
 }
