@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { friendly } from './errors'
-import { canManage, fetchProfiles, supabase, type Bolum, type BolumKod, type DbStage, type Profile, type Seviye } from './supabase'
+import { locale, t } from './i18n'
+import { canManage, fetchProfiles, seviyeLabel, supabase, type Bolum, type BolumKod, type DbStage, type Profile, type Seviye } from './supabase'
 
 export type StepStatus = 'waiting' | 'active' | 'problem' | 'review' | 'done'
 
@@ -217,8 +218,6 @@ function push<K, V>(map: Map<K, V[]>, key: K, value: V) {
   else map.set(key, [value])
 }
 
-const SEVIYE_TEXT: Record<Seviye, string> = { usta: 'Usta', kalfa: 'Kalfa', cirak: 'Çırak' }
-
 // İmalat first: it is where most people are.
 const BOLUM_RANK: Record<BolumKod, number> = { imalat: 0, satinalma: 1, tasarim: 2, muhasebe: 3 }
 const BOLUM_ORDER = (b: Bolum) => (b.kod ? BOLUM_RANK[b.kod] : 9)
@@ -290,7 +289,7 @@ function index(input: Raw): Workshop {
     person: (id) => people.get(id),
     uzmanliklarOf: (id) => uzmanliklarOf.get(id) ?? [],
     uzmanlikText: (id) =>
-      (uzmanliklarOf.get(id) ?? []).map((u) => `${u.name} · ${SEVIYE_TEXT[u.seviye]}`).join(', '),
+      (uzmanliklarOf.get(id) ?? []).map((u) => `${u.name} · ${seviyeLabel(u.seviye)}`).join(', '),
     uzmanlikName: (id) => (id ? uzmanlikName.get(id) : undefined),
     stepType: (id) => (id ? stepTypes.get(id) : undefined),
     bolumName: (id) => (id ? bolumById.get(id)?.name : undefined),
@@ -378,9 +377,9 @@ export function groupPeople(data: Workshop, people: Profile[]): { title: string 
   const top = data.ready ? people.filter((p) => p.panel === 'ceo') : []
   const rest = people.filter((p) => !top.includes(p))
   return [
-    { title: 'Genel Müdür ve IT', people: top },
-    ...data.bolumler.map((b) => ({ title: b.name, people: rest.filter((p) => p.bolum_id === b.id) })),
-    { title: 'Bölüm seçilmedi', people: rest.filter((p) => !p.bolum_id || !known.has(p.bolum_id)) },
+    { title: t('Genel Müdür ve IT'), people: top },
+    ...data.bolumler.map((b) => ({ title: t(b.name), people: rest.filter((p) => p.bolum_id === b.id) })),
+    { title: t('Bölüm seçilmedi'), people: rest.filter((p) => !p.bolum_id || !known.has(p.bolum_id)) },
   ].filter((g) => g.people.length > 0)
 }
 
@@ -398,11 +397,12 @@ export function canHandleTalep(data: Workshop, me: Profile, talep: Pick<Talep, '
 
 export const isOpen = (t: Pick<Talep, 'status'>) => t.status === 'acik' || t.status === 'siparis'
 
+/** Turkish; shown through t(). */
 export const TALEP_STATUS_LABEL: Record<TalepStatus, string> = {
-  acik: 'Açık',
-  siparis: 'Sipariş verildi',
+  acik: 'Açık', // i18n-ok
+  siparis: 'Sipariş verildi', // i18n-ok
   geldi: 'Geldi',
-  cozuldu: 'Düzeltildi',
+  cozuldu: 'Düzeltildi', // i18n-ok
 }
 
 export type TalepActionName = 'ilgilen' | 'siparis' | 'geldi' | 'cozuldu'
@@ -435,9 +435,21 @@ export function reportProblem(
 
 // ---- Dates and status, shared by every screen ----
 
-const DAY = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short' })
-const DAY_YEAR = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })
-const MOMENT = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+// Made per language: the language is read when a date is shown.
+const formats = new Map<string, { day: Intl.DateTimeFormat; dayYear: Intl.DateTimeFormat; moment: Intl.DateTimeFormat }>()
+function format() {
+  const loc = locale()
+  let f = formats.get(loc)
+  if (!f) {
+    f = {
+      day: new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'short' }),
+      dayYear: new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'short', year: 'numeric' }),
+      moment: new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+    }
+    formats.set(loc, f)
+  }
+  return f
+}
 
 /** A stored date ("2026-10-24") as a local calendar day, never shifted by time zone. */
 export function parseDay(value: string): Date {
@@ -454,11 +466,12 @@ export function today(): string {
 export function formatDay(value: string | null): string {
   if (!value) return ''
   const date = parseDay(value)
-  return (date.getFullYear() === new Date().getFullYear() ? DAY : DAY_YEAR).format(date)
+  const f = format()
+  return (date.getFullYear() === new Date().getFullYear() ? f.day : f.dayYear).format(date)
 }
 
 export function formatMoment(value: string | null): string {
-  return value ? MOMENT.format(new Date(value)) : ''
+  return value ? format().moment.format(new Date(value)) : ''
 }
 
 /** Late means the due day has passed and the step is not finished. */
@@ -477,16 +490,18 @@ export function shownStatus(step: Pick<Step, 'due_date' | 'status'>): Shown {
   return step.status
 }
 
+/** Turkish; shown through t(). */
 export const SHOWN_LABEL: Record<Shown, string> = {
   done: 'Bitti',
-  problem: 'Sorun bildirildi',
+  problem: 'Sorun bildirildi', // i18n-ok
   review: 'Onay bekliyor',
   late: 'Gecikti',
   active: 'Devam ediyor',
   waiting: 'Bekliyor',
 }
 
-export const PROBLEM_REASONS = ['Malzeme eksik', 'Çizim hatalı', 'Makine arızası', 'Başka bir sorun']
+/** Stored as written (in Turkish); shown through t(). */
+export const PROBLEM_REASONS = ['Malzeme eksik', 'Çizim hatalı', 'Makine arızası', 'Başka bir sorun'] // i18n-ok
 
 /** A project is finished when it has steps and all of them are done. */
 export function isFinished(steps: Step[]): boolean {

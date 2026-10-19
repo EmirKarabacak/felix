@@ -90,6 +90,14 @@ their phones and press start / finish / report a problem.
   `/version.json` written by `vite.config.ts`).
 - Muhasebe is parked; Emir wants only the Genel Müdür to see invoices and
   payments, as two sections. The Genel Müdür phone summary screen is on hold.
+- Language and theme (Update 1): Ayarlar > "Dil ve görünüm" has Dil (Türkçe /
+  English) and Tema (Sistem / Açık / Koyu). Each person's own choice, kept on
+  the device (localStorage `felix.lang`, `felix.theme`); defaults Türkçe and
+  Sistem (follows the phone). Turkish wording was reviewed with Emir string by
+  string: e.g. "Kişiyi çıkar", "Atanan kişiler", "Onay bekleniyor.", "Firma"
+  (not Müşteri), "Proje türleri" / "Adım türleri". In English Kalfa is
+  "Skilled", Usta "Master", Çırak "Apprentice", Bölüm Sorumlusu "Department
+  Head", Personel "Staff".
 - Chat, when built, goes on projects (one conversation per project), visible to
   workers too. The "Sorun bildir" button stays and should also post into the
   project chat.
@@ -112,6 +120,28 @@ SwiftUI's ConcentricRectangle):
   licence is for Apple platforms only).
 - Touch targets at least 44px; inputs 16px so iOS does not zoom.
 
+## Texts and languages
+
+- Every text on screen goes through `t()` from `src/lib/i18n.tsx`, written in
+  Turkish: `t('Projeyi oluştur')`, `t('{n} adım', { n })`. The English is in
+  `src/lib/en/*.ts`, keyed by that Turkish text; a missing entry shows the
+  Turkish. A count uses the var `n` and its English can be `{ one, other }`.
+- When one Turkish word means two things, add `|note` to the key
+  (`t('Açık|tema')` = Light, `t('Açık')` = Open); the note is never shown.
+- Messages that come from the database or `api/` also go through `t()` (in
+  `friendly()`); `TR_FIX` in i18n.tsx rewords a database message without a
+  migration.
+- Never call `t()` at module top level (the language is read at call time;
+  changing it remounts the app). Never pass a template literal to `t()`.
+- `npx tsx scripts/check-i18n.ts` fails on a `t()` text with no English, on
+  server/database messages with no English, and on Turkish left outside
+  `t()`. A line that must stay Turkish (e.g. "Türkçe" itself) ends with
+  `// i18n-ok`.
+- Dark theme: colours are tokens at the top of `src/styles.css`, redefined for
+  `[data-theme='dark']` and for Sistem on a dark phone. Never write a colour
+  outside the tokens. `index.html` applies the saved theme before the app
+  loads so dark never flashes white.
+
 ## How it is built and run
 
 | Part | Where | Notes |
@@ -130,9 +160,10 @@ SwiftUI's ConcentricRectangle):
   in the Supabase SQL Editor (copy from GitHub, paste, Run). So every migration
   must be safe to run more than once and must also work as one transaction.
   Push the front end so it still works before he has run the new file, and tell
-  him clearly which file to run. He has run 0001 to 0007;
-  0008_uzmanlik_talepler_dosyalar.sql is new (it also creates the Storage
-  bucket and its access rules).
+  him clearly which file to run. He has run 0001 to 0008
+  (0008 also created the Storage bucket and its access rules). The Supabase
+  connector can be tried for running a migration; it timed out once, so the
+  fallback is Emir pasting it.
   `src/lib/supabase.ts` `fetchProfiles` shows the pattern for working before a
   migration has run (fall back, hide the feature).
 - Data loads in `src/lib/workshop.tsx` (one provider, refreshes every 30 s and
@@ -151,6 +182,8 @@ scripts/local-up.sh && node scripts/e2e-stage2.mjs      # projects, steps, worke
 scripts/local-up.sh && node scripts/e2e-companies.mjs   # Firmalar (23)
 scripts/local-up.sh && node scripts/e2e-approval.mjs    # approval by uzmanlık level, Takvim (31)
 FELIX_MIGRATIONS_UNTIL=0007 scripts/local-up.sh && node scripts/e2e-0008.mjs  # runs 0008 mid-test; Uzmanlık, Talepler, Dosyalar (42)
+scripts/local-up.sh && node scripts/e2e-language.mjs    # English, dark theme, Ayarlar switches, Ekip labels (25)
+npx tsc --noEmit && npx tsx scripts/check-i18n.ts       # types, and every text has English
 ```
 
 Run them all before pushing, and check that each one actually printed "ALL ...
@@ -164,20 +197,30 @@ Türler (project and step types, with a suggested uzmanlık), projects with step
 and assigning, start / finish / problems, approval by uzmanlık level, Firmalar,
 Takvim, keyboard handling on phones, icons, the four fixed bölümler, Uzmanlık,
 Talepler, Dosyalar (project and step files with Eski sürümler), self-reload on
-a new version, İşlerim for managers, Ayarlar.
+a new version, İşlerim for managers, Ayarlar, English version, dark theme
+(Update 1).
 
-Agreed but not built yet (stage 3):
-- Notifications: a bell in the app plus phone alerts (web push; iPhones need
-  Felix added to the home screen first). Next after 0008, when Emir says so.
-- Chat on each project.
-- Time and history view per step (the data is already recorded in
-  `step_events`, `started_at`, `finished_at`).
-- Workload view: what each worker has this week.
-- Later idea from Emir: a Kılavuz (manuals, e.g. welding parameters) per bölüm.
+Agreed order of the next updates; each goes to Emir before going live and
+starts only when he says go:
+- Update 2: (a) Finish photo, like the Lime bike app: "İşi bitir" opens the
+  camera and the job finishes only once a photo is taken. Everyone except
+  Genel Müdür and IT (Bölüm Sorumluları too: "the main reason for the app is
+  to store data"). The photo goes into the step's files and is shown to the
+  approver. (b) Step history inside the step window (`step_events`,
+  `started_at`, `finished_at`). (c) A new "Özet" tab for Genel Müdür and IT
+  only, rest of their app unchanged: late projects, open problems, jobs
+  awaiting approval, open requests, finished this week. This replaces the
+  on-hold phone summary screen.
+- Update 3: chat on each project, seen by everyone; "Sorun bildir" also posts
+  into it.
+- Update 4: notifications, a bell plus phone alerts (web push; iPhones need
+  Felix on the home screen): assigned, sent back, awaiting your approval, new
+  request for your bölüm, your material arrived, new chat message.
+- Not wanted: weekly workload view. Not chosen yet: quality checklist, planned
+  durations per step type, copy a project, customer PDF, QR label, Kılavuz
+  (manuals per bölüm).
 
 Open questions to Emir:
 - Does Takvim need a zoomed-out option to show more months?
 
-Ideas discussed, not agreed: duplicate a project, planned durations per step
-type (fill due dates from the delivery date), checklists
-inside a step, materials per step, Excel export, dashboard.
+Ideas discussed, not agreed: materials per step, Excel export.

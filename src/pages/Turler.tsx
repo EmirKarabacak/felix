@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { BackToSettings } from '../components/Shell'
 import { EditableList } from '../components/EditableList'
 import { ErrorNote, Icon, Spinner } from '../components/ui'
+import { t } from '../lib/i18n'
 import { ONAY_KURALI, supabase } from '../lib/supabase'
 import { useWorkshop, type Workshop } from '../lib/workshop'
 
@@ -14,7 +15,7 @@ export function Turler() {
       <div className="page">
         <BackToSettings />
         <div className="page-head">
-          <h1>Türler</h1>
+          <h1>{t('Türler')}</h1>
         </div>
         {error ? <ErrorNote>{error}</ErrorNote> : <Spinner />}
       </div>
@@ -26,44 +27,50 @@ export function Turler() {
       <BackToSettings />
       <div className="page-head">
         <div>
-          <h1>Türler</h1>
-          <div className="sub">Yeni proje açarken kullanılan hazır listeler. Değişiklikler mevcut projeleri etkilemez.</div>
+          <h1>{t('Türler')}</h1>
+          <div className="sub">{t('Yeni proje açarken kullanılan hazır listeler. Değişiklikler mevcut projeleri etkilemez.')}</div>
         </div>
       </div>
       <ErrorNote>{error}</ErrorNote>
 
-      <section className="stack" aria-label="Proje türleri">
-        <h3>Proje Türleri</h3>
+      <section className="stack" aria-label={t('Proje türleri')}>
+        <h3>{t('Proje türleri')}</h3>
         <ProjectTypes data={data} />
       </section>
 
-      <section className="stack narrow-section" aria-label="Adım türleri">
-        <h3>Adım Türleri</h3>
+      <section className="stack narrow-section" aria-label={t('Adım türleri')}>
+        <h3>{t('Adım türleri')}</h3>
         <EditableList
           items={data.stepTypes}
-          noun="adım türü"
-          placeholder="Örnek: Membran yükleme"
+          id="adim-turu"
+          texts={{
+            empty: t('Henüz adım türü yok.'),
+            nameLabel: t('Adım türü adı'),
+            newLabel: t('Yeni adım türü'),
+            deleteLabel: (item) => t('{name} adım türü sil', { name: item.name }),
+          }}
+          placeholder={t('Örnek: Membran yükleme')}
           note={(item) => {
             const n = new Set(data.projectTypeSteps.filter((s) => s.step_type_id === item.id).map((s) => s.project_type_id)).size
-            return n ? `${n} proje türünde` : ''
+            return n ? t('{n} proje türünde', { n }) : ''
           }}
           deleteWarning={(item) => {
             const n = new Set(data.projectTypeSteps.filter((s) => s.step_type_id === item.id).map((s) => s.project_type_id)).size
-            return n ? `${item.name}: ${n} proje türünden de çıkarılır.` : null
+            return n ? t('{name}: {n} proje türünden de çıkarılır.', { name: item.name, n }) : null
           }}
           extra={
             data.ready
               ? (item) => (
                   <select
                     className="input uzmanlik-select"
-                    aria-label={`${item.name} uzmanlığı`}
+                    aria-label={t('{name} uzmanlığı', { name: item.name })}
                     value={data.stepType(item.id)?.uzmanlik_id ?? ''}
                     onChange={(e) => {
                       const value = e.target.value || null
                       void change(() => supabase.from('step_types').update({ uzmanlik_id: value }).eq('id', item.id))
                     }}
                   >
-                    <option value="">Uzmanlık yok</option>
+                    <option value="">{t('Uzmanlık yok')}</option>
                     {data.uzmanliklar.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name}
@@ -80,10 +87,9 @@ export function Turler() {
         {data.ready ? (
           <>
             <div className="hint">
-              Önerilen uzmanlık: adıma kişi atarken bu uzmanlıktaki kişiler üstte görünür. Uzmanlığı olmayan adımları
-              Personel bitirince iş her zaman onay bekler.
+              {t('Önerilen uzmanlık: adıma kişi atarken bu uzmanlıktaki kişiler üstte görünür. Uzmanlığı olmayan adımları Personel bitirince iş her zaman onay bekler.')}
             </div>
-            <div className="hint">{ONAY_KURALI}</div>
+            <div className="hint">{t(ONAY_KURALI)}</div>
           </>
         ) : null}
       </section>
@@ -100,9 +106,9 @@ function ProjectTypes({ data }: { data: Workshop }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const current = data.projectTypes.find((t) => t.id === selected) ?? null
+  const current = data.projectTypes.find((pt) => pt.id === selected) ?? null
   const steps = current ? data.typeStepsOf(current.id) : []
-  const addable = data.stepTypes.filter((t) => !steps.some((s) => s.step_type_id === t.id))
+  const addable = data.stepTypes.filter((st) => !steps.some((s) => s.step_type_id === st.id))
 
   async function run(work: () => PromiseLike<{ error: unknown }>, after?: () => void) {
     if (busy) return
@@ -165,33 +171,33 @@ function ProjectTypes({ data }: { data: Workshop }) {
     <div className="split">
       <div className="side">
         <div className="card rows name-list">
-          {data.projectTypes.length === 0 ? <div className="empty">Henüz proje türü yok.</div> : null}
-          {data.projectTypes.map((t) => (
+          {data.projectTypes.length === 0 ? <div className="empty">{t('Henüz proje türü yok.')}</div> : null}
+          {data.projectTypes.map((type) => (
             <button
-              key={t.id}
+              key={type.id}
               type="button"
               className="type-row press"
-              aria-pressed={t.id === selected}
-              onClick={() => pick(t.id)}
+              aria-pressed={type.id === selected}
+              onClick={() => pick(type.id)}
             >
-              <span>{t.name}</span>
-              <span className="count">{data.typeStepsOf(t.id).length} adım</span>
+              <span>{type.name}</span>
+              <span className="count">{t('{n} adım', { n: data.typeStepsOf(type.id).length })}</span>
             </button>
           ))}
         </div>
         <form onSubmit={create} className="field">
-          <label htmlFor="yeni-proje-turu">Yeni proje türü</label>
+          <label htmlFor="yeni-proje-turu">{t('Yeni proje türü')}</label>
           <div className="inline-form">
             <input
               id="yeni-proje-turu"
               className="input"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Örnek: Ultrafiltrasyon Ünitesi"
+              placeholder={t('Örnek: Ultrafiltrasyon Ünitesi')}
               maxLength={80}
             />
             <button type="submit" className="btn btn-dark press" disabled={busy || !newName.trim()}>
-              Oluştur
+              {t('Oluştur')}
             </button>
           </div>
         </form>
@@ -204,7 +210,7 @@ function ProjectTypes({ data }: { data: Workshop }) {
               <div className="type-head">
                 <h2>{current.name}</h2>
                 <button type="button" className="btn btn-quiet press" onClick={() => setName(current.name)}>
-                  Adını değiştir
+                  {t('Adını değiştir')}
                 </button>
               </div>
             ) : (
@@ -213,19 +219,19 @@ function ProjectTypes({ data }: { data: Workshop }) {
                   className="input"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  aria-label="Proje türü adı"
+                  aria-label={t('Proje türü adı')}
                   autoFocus
                   maxLength={80}
                 />
                 <button type="submit" className="btn btn-tint press" disabled={busy}>
-                  Kaydet
+                  {t('Kaydet')}
                 </button>
               </form>
             )}
 
             <div>
-              <div className="field-label">Bu türdeki projelere otomatik eklenen adımlar</div>
-              {steps.length === 0 ? <div className="sub pad">Henüz adım yok. Aşağıdan ekleyin.</div> : null}
+              <div className="field-label">{t('Bu türdeki projelere otomatik eklenen adımlar')}</div>
+              {steps.length === 0 ? <div className="sub pad">{t('Henüz adım yok. Aşağıdan ekleyin.')}</div> : null}
               <div className="rows">
                 {steps.map((s, i) => (
                   <div key={s.id} className="type-step">
@@ -234,7 +240,7 @@ function ProjectTypes({ data }: { data: Workshop }) {
                     <button
                       type="button"
                       className="btn btn-icon press"
-                      aria-label={`${s.name} adımını yukarı taşı`}
+                      aria-label={t('{name} adımını yukarı taşı', { name: s.name })}
                       disabled={busy || i === 0}
                       onClick={() => move(i, -1)}
                     >
@@ -243,7 +249,7 @@ function ProjectTypes({ data }: { data: Workshop }) {
                     <button
                       type="button"
                       className="btn btn-icon press"
-                      aria-label={`${s.name} adımını aşağı taşı`}
+                      aria-label={t('{name} adımını aşağı taşı', { name: s.name })}
                       disabled={busy || i === steps.length - 1}
                       onClick={() => move(i, 1)}
                     >
@@ -252,7 +258,7 @@ function ProjectTypes({ data }: { data: Workshop }) {
                     <button
                       type="button"
                       className="btn btn-icon press"
-                      aria-label={`${s.name} adımını türden çıkar`}
+                      aria-label={t('{name} adımını türden çıkar', { name: s.name })}
                       disabled={busy}
                       onClick={() => void run(() => supabase.from('project_type_steps').delete().eq('id', s.id))}
                     >
@@ -265,11 +271,11 @@ function ProjectTypes({ data }: { data: Workshop }) {
 
             {addable.length ? (
               <div>
-                <div className="field-label">Adım ekle</div>
+                <div className="field-label">{t('Adım ekle')}</div>
                 <div className="chips">
-                  {addable.map((t) => (
+                  {addable.map((type) => (
                     <button
-                      key={t.id}
+                      key={type.id}
                       type="button"
                       className="btn btn-tint press"
                       disabled={busy}
@@ -277,14 +283,14 @@ function ProjectTypes({ data }: { data: Workshop }) {
                         void run(() =>
                           supabase.from('project_type_steps').insert({
                             project_type_id: current.id,
-                            step_type_id: t.id,
+                            step_type_id: type.id,
                             position: (steps[steps.length - 1]?.position ?? 0) + 1,
                           }),
                         )
                       }
                     >
                       <Icon name="plus" size={16} />
-                      {t.name}
+                      {type.name}
                     </button>
                   ))}
                 </div>
@@ -296,7 +302,7 @@ function ProjectTypes({ data }: { data: Workshop }) {
             {removing ? (
               <div className="dialog-foot">
                 <div className="note note-error">
-                  "{current.name}" türü silinecek. Bu türle açılmış projeler olduğu gibi kalır.
+                  {t('"{name}" türü silinecek. Bu türle açılmış projeler olduğu gibi kalır.', { name: current.name })}
                 </div>
                 <div className="pair">
                   <button
@@ -308,26 +314,26 @@ function ProjectTypes({ data }: { data: Workshop }) {
                         () => supabase.from('project_types').delete().eq('id', current.id),
                         () => {
                           setRemoving(false)
-                          setSelected(data.projectTypes.find((t) => t.id !== current.id)?.id ?? null)
+                          setSelected(data.projectTypes.find((pt) => pt.id !== current.id)?.id ?? null)
                         },
                       )
                     }
                   >
-                    Evet, türü sil
+                    {t('Evet, türü sil')}
                   </button>
                   <button type="button" className="btn btn-quiet press" onClick={() => setRemoving(false)}>
-                    Vazgeç
+                    {t('Vazgeç')}
                   </button>
                 </div>
               </div>
             ) : (
               <button type="button" className="btn btn-danger press end" onClick={() => setRemoving(true)}>
-                Bu türü sil
+                {t('Bu türü sil')}
               </button>
             )}
           </>
         ) : (
-          <div className="empty">Düzenlemek için bir proje türü seçin veya yeni bir tür oluşturun.</div>
+          <div className="empty">{t('Düzenlemek için bir proje türü seçin veya yeni bir tür oluşturun.')}</div>
         )}
       </div>
     </div>

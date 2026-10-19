@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useProfile } from '../lib/auth'
+import { t } from '../lib/i18n'
 import { SEVIYE_LABEL, SEVIYELER, canManage, supabase, type Profile } from '../lib/supabase'
 import {
   PROBLEM_REASONS,
@@ -20,7 +21,7 @@ import { Dialog, ErrorNote, Field, Icon } from './ui'
 
 export function StatusBadge({ step }: { step: Pick<Step, 'due_date' | 'status'> }) {
   const shown = shownStatus(step)
-  return <span className={`badge status-${shown}`}>{SHOWN_LABEL[shown]}</span>
+  return <span className={`badge status-${shown}`}>{t(SHOWN_LABEL[shown])}</span>
 }
 
 /**
@@ -106,8 +107,11 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
 
   if (rejecting) {
     return (
-      <Dialog title="Geri gönder" subtitle={step.name} onClose={() => setRejecting(false)}>
-        <Field label="Neden geri gönderiyorsunuz?" hint="İşi yapan kişi bu notu görür. Örnek: neyin yeniden yapılması gerekiyor.">
+      <Dialog title={t('Geri gönder')} subtitle={step.name} onClose={() => setRejecting(false)}>
+        <Field
+          label={t('Neden geri gönderiyorsunuz?')}
+          hint={t('İşi yapan kişi bu notu görür. Örnek: neyin yeniden yapılması gerekiyor.')}
+        >
           {(id) => (
             <textarea
               id={id}
@@ -134,7 +138,7 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
             )
           }
         >
-          {busy ? 'Gönderiliyor…' : 'Geri gönder'}
+          {busy ? t('Gönderiliyor…') : t('Geri gönder')}
         </button>
       </Dialog>
     )
@@ -142,37 +146,37 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
 
   if (reporting) {
     return (
-      <Dialog title="Sorun nedir?" subtitle={step.name} onClose={() => setReporting(false)} focusFirst={false}>
-        <div className="card rows checklist" role="group" aria-label="Sorun türü">
+      <Dialog title={t('Sorun nedir?')} subtitle={step.name} onClose={() => setReporting(false)} focusFirst={false}>
+        <div className="card rows checklist" role="group" aria-label={t('Sorun türü')}>
           {PROBLEM_REASONS.map((r) => (
             <button key={r} type="button" className="check-row press" aria-pressed={reason === r} onClick={() => setReason(r)}>
-              <span>{r}</span>
+              <span>{t(r)}</span>
               {reason === r ? <Icon name="check" /> : null}
             </button>
           ))}
         </div>
         {asksMaterial ? (
           <div className="pair material-pair">
-            <Field label="Eksik malzeme" hint="Satın alma ve bölüm sorumluları görür.">
+            <Field label={t('Eksik malzeme')} hint={t('Satın alma ve bölüm sorumluları görür.')}>
               {(id) => (
                 <input
                   id={id}
                   className="input"
                   value={material}
                   onChange={(e) => setMaterial(e.target.value)}
-                  placeholder="Örnek: 2 inç küresel vana"
+                  placeholder={t('Örnek: 2 inç küresel vana')}
                   maxLength={200}
                 />
               )}
             </Field>
-            <Field label="Miktar">
+            <Field label={t('Miktar')}>
               {(id) => (
                 <input
                   id={id}
                   className="input"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="Örnek: 4 adet"
+                  placeholder={t('Örnek: 4 adet')}
                   maxLength={60}
                 />
               )}
@@ -180,8 +184,12 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
           </div>
         ) : null}
         <Field
-          label="Not (isteğe bağlı)"
-          hint={data.ready && reason === 'Çizim hatalı' ? 'Tasarım görür. Örnek: hangi ölçü yanlış.' : 'Örnek: hangi makine, ne oldu.'}
+          label={t('Not (isteğe bağlı)')}
+          hint={
+            data.ready && reason === 'Çizim hatalı' // i18n-ok: the stored reason
+              ? t('Tasarım görür. Örnek: hangi ölçü yanlış.')
+              : t('Örnek: hangi makine, ne oldu.')
+          }
         >
           {(id) => <input id={id} className="input" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />}
         </Field>
@@ -192,7 +200,7 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
           disabled={busy || !reason || (asksMaterial && !material.trim())}
           onClick={report}
         >
-          {busy ? 'Bildiriliyor…' : 'Sorunu bildir'}
+          {busy ? t('Bildiriliyor…') : t('Sorunu bildir')}
         </button>
       </Dialog>
     )
@@ -202,40 +210,40 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
     <Dialog title={step.name} subtitle={subtitle} onClose={onClose} focusFirst={false}>
       {step.status === 'problem' ? (
         <div className="note note-warn" role="status">
-          <strong>{step.problem_reason}</strong>
+          <strong>{step.problem_reason ? t(step.problem_reason) : null}</strong>
           {step.problem_note ? <div>{step.problem_note}</div> : null}
         </div>
       ) : null}
 
-      {talepler.length ? <TalepList talepler={talepler} label="Talepler" /> : null}
+      {talepler.length ? <TalepList talepler={talepler} label={t('Talepler')} /> : null}
 
       {step.status === 'review' ? (
         <div className="note note-review" role="status">
-          <strong>{manages ? 'Bu iş onayınızı bekliyor.' : 'Yönetici onayı bekleniyor.'}</strong>
-          {step.submitted_at ? <div>Teslim edildi: {formatMoment(step.submitted_at)}</div> : null}
+          <strong>{manages ? t('Bu iş onayınızı bekliyor.') : t('Onay bekleniyor.')}</strong>
+          {step.submitted_at ? <div>{t('Teslim edildi: {time}', { time: formatMoment(step.submitted_at) })}</div> : null}
         </div>
       ) : null}
       {step.review_note && step.status !== 'review' && step.status !== 'done' ? (
         <div className="note note-warn" role="status">
-          <strong>Yönetici geri gönderdi</strong>
+          <strong>{t('Geri gönderildi')}</strong>
           <div>{step.review_note}</div>
         </div>
       ) : null}
 
       <div className="card rows facts">
         <div className="fact">
-          <span>Durum</span>
+          <span>{t('Durum')}</span>
           <StatusBadge step={step} />
         </div>
         {data.uzmanlikName(data.stepType(step.step_type_id)?.uzmanlik_id ?? null) ? (
           <div className="fact">
-            <span>Uzmanlık</span>
+            <span>{t('Uzmanlık')}</span>
             <span className="value">{data.uzmanlikName(data.stepType(step.step_type_id)?.uzmanlik_id ?? null)}</span>
           </div>
         ) : null}
         {manages ? (
           <label className="fact">
-            <span>Bitiş tarihi</span>
+            <span>{t('Bitiş tarihi')}</span>
             <input
               type="date"
               className="date-input"
@@ -248,19 +256,19 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
           </label>
         ) : (
           <div className="fact">
-            <span>Bitiş tarihi</span>
-            <span className="value">{formatDay(step.due_date) || 'Belirlenmedi'}</span>
+            <span>{t('Bitiş tarihi')}</span>
+            <span className="value">{formatDay(step.due_date) || t('Belirlenmedi')}</span>
           </div>
         )}
         {step.started_at ? (
           <div className="fact">
-            <span>Başladı</span>
+            <span>{t('Başladı')}</span>
             <span className="value">{formatMoment(step.started_at)}</span>
           </div>
         ) : null}
         {step.finished_at ? (
           <div className="fact">
-            <span>Bitti</span>
+            <span>{t('Bitti|zaman')}</span>
             <span className="value">{formatMoment(step.finished_at)}</span>
           </div>
         ) : null}
@@ -272,7 +280,7 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
         <div className="dialog-foot">
           {step.status === 'waiting' ? (
             <button type="button" className="btn btn-go btn-big press" disabled={busy} onClick={() => void act('start')}>
-              İşe başla
+              {t('İşe başla')}
             </button>
           ) : null}
           {step.status === 'active' || (manages && step.status === 'waiting') ? (
@@ -282,44 +290,44 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
               disabled={busy}
               onClick={() => void act('finish')}
             >
-              İşi bitir
+              {t('İşi bitir')}
             </button>
           ) : null}
           {step.status === 'problem' ? (
             <button type="button" className="btn btn-primary btn-big press" disabled={busy} onClick={() => void act('start')}>
-              Sorun çözüldü, devam et
+              {t('Sorun çözüldü, devam et')}
             </button>
           ) : null}
           {step.status === 'waiting' || step.status === 'active' ? (
             <button type="button" className="btn btn-warn-quiet btn-big press" disabled={busy} onClick={() => setReporting(true)}>
-              Sorun bildir
+              {t('Sorun bildir')}
             </button>
           ) : null}
           {manages && step.status === 'review' ? (
             <>
               <button type="button" className="btn btn-go btn-big press" disabled={busy} onClick={() => void act('approve')}>
-                Onayla
+                {t('Onayla')}
               </button>
               <button type="button" className="btn btn-warn-quiet btn-big press" disabled={busy} onClick={() => setRejecting(true)}>
-                Geri gönder
+                {t('Geri gönder')}
               </button>
             </>
           ) : null}
           {manages && step.status === 'done' ? (
             <button type="button" className="btn btn-tint btn-big press" disabled={busy} onClick={() => void act('reopen')}>
-              Yeniden aç
+              {t('Yeniden aç')}
             </button>
           ) : null}
         </div>
       ) : null}
 
       <div>
-        <div className="field-label">Sorumlular</div>
+        <div className="field-label">{t('Atanan kişiler')}</div>
         {manages ? (
           assignGroups(data, step, data.people.filter((p) => p.active || assignees.some((a) => a.id === p.id))).map((g) => (
             <div key={g.title ?? 'all'}>
-              {g.title ? <div className="check-group">{g.title}</div> : null}
-              <div className="card rows checklist" role="group" aria-label={g.title ?? 'Sorumlular'}>
+              {g.title ? <div className="check-group">{t(g.title)}</div> : null}
+              <div className="card rows checklist" role="group" aria-label={g.title ? t(g.title) : t('Atanan kişiler')}>
                 {g.people.map(({ person: p, note }) => {
                   const on = assignees.some((a) => a.id === p.id)
                   return (
@@ -351,20 +359,20 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
             ))}
           </div>
         ) : (
-          <div className="sub">Henüz kimse atanmadı.</div>
+          <div className="sub">{t('Henüz kimse atanmadı.')}</div>
         )}
-        {manages ? <div className="hint">Bir adıma birden fazla kişi atayabilirsiniz.</div> : null}
+        {manages ? <div className="hint">{t('Bir adıma birden fazla kişi atayabilirsiniz.')}</div> : null}
       </div>
 
       {data.ready && project ? (
         <FileSection
-          title="Dosyalar"
+          title={t('Dosyalar')}
           projectId={project.id}
           stepId={step.id}
           files={data.dosyalarOfStep(step.id)}
           canAdd
-          addLabel="Dosya ekle"
-          empty="Bu adımda dosya yok. Fotoğraf veya küçük belgeler ekleyebilirsiniz."
+          addLabel={t('Dosya ekle')}
+          empty={t('Bu adımda dosya yok. Fotoğraf veya küçük belgeler ekleyebilirsiniz.')}
         />
       ) : null}
 
@@ -372,7 +380,7 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
         <div className="dialog-foot">
           <div className="pair">
             <button type="button" className="btn btn-quiet press" disabled={busy || place <= 0} onClick={() => move(-1)}>
-              Yukarı taşı
+              {t('Yukarı taşı')}
             </button>
             <button
               type="button"
@@ -380,27 +388,27 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
               disabled={busy || place >= siblings.length - 1}
               onClick={() => move(1)}
             >
-              Aşağı taşı
+              {t('Aşağı taşı')}
             </button>
           </div>
           {confirmRemove ? (
             <>
-              <div className="note note-error">Bu adım projeden kaldırılacak. Geri alınamaz.</div>
+              <div className="note note-error">{t('Bu adım projeden kaldırılacak. Geri alınamaz.')}</div>
               <button
                 type="button"
                 className="btn btn-danger btn-big press"
                 disabled={busy}
                 onClick={() => void run(() => supabase.from('project_steps').delete().eq('id', step.id), onClose)}
               >
-                Evet, adımı kaldır
+                {t('Evet, adımı kaldır')}
               </button>
               <button type="button" className="btn btn-quiet btn-big press" onClick={() => setConfirmRemove(false)}>
-                Vazgeç
+                {t('Vazgeç')}
               </button>
             </>
           ) : (
             <button type="button" className="btn btn-danger btn-big press" onClick={() => setConfirmRemove(true)}>
-              Adımı kaldır
+              {t('Adımı kaldır')}
             </button>
           )}
         </div>
@@ -430,10 +438,15 @@ function assignGroups(data: Workshop, step: Step, people: Profile[]): AssignGrou
   const note = (p: Profile) => (inImalat(p) ? data.uzmanlikText(p.id) : '')
   return [
     ...(matching.length
-      ? [{ title: `Önerilen: ${uzmanlik}`, people: matching.map((p) => ({ person: p, note: SEVIYE_LABEL[levelIn(p)!] })) }]
+      ? [
+          {
+            title: t('Önerilen: {uzmanlik}', { uzmanlik: uzmanlik ?? '' }),
+            people: matching.map((p) => ({ person: p, note: t(SEVIYE_LABEL[levelIn(p)!]) })),
+          },
+        ]
       : []),
     ...groupPeople(data, rest).map((g) => ({
-      title: matching.length && !g.title ? 'Diğerleri' : g.title,
+      title: matching.length && !g.title ? t('Diğerleri') : g.title,
       people: g.people.map((p) => ({ person: p, note: note(p) })),
     })),
   ]

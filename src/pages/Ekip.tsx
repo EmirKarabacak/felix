@@ -3,6 +3,7 @@ import { Dialog, ErrorNote, Field, Icon, Segmented, Spinner } from '../component
 import { callApi } from '../lib/api'
 import { useAuth, useProfile } from '../lib/auth'
 import { friendly } from '../lib/errors'
+import { locale, t } from '../lib/i18n'
 import {
   DEFAULT_SEVIYE,
   ONAY_KURALI,
@@ -39,7 +40,7 @@ export function Ekip() {
     if (!data) return null
     const sorted = data.people
       .filter((p) => p.active)
-      .sort((a, b) => ROL_ORDER.indexOf(rolOf(a)) - ROL_ORDER.indexOf(rolOf(b)) || a.full_name.localeCompare(b.full_name, 'tr'))
+      .sort((a, b) => ROL_ORDER.indexOf(rolOf(a)) - ROL_ORDER.indexOf(rolOf(b)) || a.full_name.localeCompare(b.full_name, locale()))
     return groupPeople(data, sorted)
   }, [data])
 
@@ -52,15 +53,15 @@ export function Ekip() {
     <div className="page">
       <div className="page-head">
         <div>
-          <h1>Ekip</h1>
+          <h1>{t('Ekip')}</h1>
           <div className="sub">
-            {isCeo ? 'Kişi eklemek veya düzenlemek için dokunun.' : 'Kişi eklemeyi ve silmeyi Genel Müdür ve IT yapar.'}
+            {isCeo ? t('Kişi eklemek veya düzenlemek için dokunun.') : t('Kişi eklemeyi ve silmeyi Genel Müdür ve IT yapar.')}
           </div>
         </div>
         {isCeo ? (
           <button type="button" className="btn btn-primary press" onClick={() => setAdding(true)}>
             <Icon name="plus" size={18} />
-            Kişi ekle
+            {t('Kişi ekle')}
           </button>
         ) : null}
       </div>
@@ -74,10 +75,10 @@ export function Ekip() {
       ) : (
         <div className="stack groups">
           {groups.map((g) => (
-            <section key={g.title ?? 'all'} className="stack" aria-label={g.title ?? 'Kişiler'}>
+            <section key={g.title ?? 'all'} className="stack" aria-label={g.title ? t(g.title) : t('Kişiler')}>
               {g.title ? (
                 <h3>
-                  {g.title} <span className="count">{g.people.length}</span>
+                  {t(g.title)} <span className="count">{g.people.length}</span>
                 </h3>
               ) : null}
               <div className="card people rows">
@@ -88,7 +89,7 @@ export function Ekip() {
                       <span className="mono"> {p.username}</span>
                     </span>
                     <span className="meslek">{personNote(data, p)}</span>
-                    <span className={`badge badge-${p.panel}`}>{rolLabel(p)}</span>
+                    <span className={`badge badge-${p.panel}`}>{t(rolLabel(p))}</span>
                     <span className="go">
                       <Icon name="chevron" size={18} />
                     </span>
@@ -98,7 +99,7 @@ export function Ekip() {
             </section>
           ))}
           {data.ready ? (
-            <div className="sub">Uzmanlık seviyeleri yalnızca Genel Müdür, IT ve Bölüm Sorumlularına görünür.</div>
+            <div className="sub">{t('Uzmanlık seviyeleri yalnızca Genel Müdür, IT ve Bölüm Sorumlularına görünür.')}</div>
           ) : null}
         </div>
       )}
@@ -135,7 +136,7 @@ export function Ekip() {
 /** The small text on a person's row: their uzmanlıklar, or which bölüm they lead. */
 function personNote(data: Workshop, p: Profile): string {
   if (!data.ready) return ''
-  if (p.panel === 'manager') return p.bolum_id ? 'Sorumlu' : ''
+  if (p.panel === 'manager') return p.bolum_id ? t('Sorumlu') : ''
   if (p.panel === 'worker' && data.bolumKod(p.bolum_id) === 'imalat') return data.uzmanlikText(p.id)
   return ''
 }
@@ -176,28 +177,28 @@ function PersonFields({
     <>
       {canChooseRol ? (
         <Segmented
-          label="Rol"
+          label={t('Rol')}
           value={rol}
-          options={roles.map((r) => ({ value: r, label: ROL_LABEL[r] }))}
+          options={roles.map((r) => ({ value: r, label: t(ROL_LABEL[r]) }))}
           onChange={onRol}
           grid={roles.length === 4}
         />
       ) : null}
       {data.bolumReady && (rol === 'manager' || rol === 'worker') ? (
         <Field
-          label={rol === 'manager' ? 'Sorumlu olduğu bölüm' : 'Bölüm'}
+          label={rol === 'manager' ? t('Sorumlu olduğu bölüm') : t('Bölüm')}
           hint={
             data.ready && rol === 'worker' && bolumId && !inImalat
-              ? 'İmalat dışındaki Personelin bitirdiği iş her zaman yönetici onayını bekler.'
+              ? t('İmalat dışındaki Personelin bitirdiği iş her zaman onay bekler.')
               : undefined
           }
         >
           {(id) => (
             <select id={id} className="input" value={bolumId} onChange={(e) => onBolum(e.target.value)}>
-              <option value="">Seçilmedi</option>
+              <option value="">{t('Seçilmedi')}</option>
               {data.bolumler.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.name}
+                  {t(b.name)}
                 </option>
               ))}
             </select>
@@ -213,11 +214,11 @@ function PersonFields({
 function UzmanlikFields({ data, levels, onChange }: { data: Workshop; levels: Levels; onChange: (value: Levels) => void }) {
   return (
     <div className="field">
-      <div className="field-label">Uzmanlıklar</div>
+      <div className="field-label">{t('Uzmanlıklar')}</div>
       {data.uzmanliklar.length === 0 ? (
-        <div className="sub">Uzmanlık listesi boş. Ayarlar'daki Uzmanlıklar'dan ekleyin.</div>
+        <div className="sub">{t("Uzmanlık listesi boş. Ayarlar'daki Uzmanlıklar'dan ekleyin.")}</div>
       ) : (
-        <div className="card rows checklist uzmanlik-list" role="group" aria-label="Uzmanlıklar">
+        <div className="card rows checklist uzmanlik-list" role="group" aria-label={t('Uzmanlıklar')}>
           {data.uzmanliklar.map((u) => {
             const level = levels[u.id]
             return (
@@ -237,7 +238,7 @@ function UzmanlikFields({ data, levels, onChange }: { data: Workshop; levels: Le
                   {level ? <Icon name="check" /> : null}
                 </button>
                 {level ? (
-                  <div className="segmented" role="group" aria-label={`${u.name} seviyesi`}>
+                  <div className="segmented" role="group" aria-label={t('{name} seviyesi', { name: u.name })}>
                     {SEVIYELER.map((sv) => (
                       <button
                         key={sv}
@@ -246,7 +247,7 @@ function UzmanlikFields({ data, levels, onChange }: { data: Workshop; levels: Le
                         aria-pressed={sv === level}
                         onClick={() => onChange({ ...levels, [u.id]: sv })}
                       >
-                        {SEVIYE_LABEL[sv]}
+                        {t(SEVIYE_LABEL[sv])}
                       </button>
                     ))}
                   </div>
@@ -256,8 +257,8 @@ function UzmanlikFields({ data, levels, onChange }: { data: Workshop; levels: Le
           })}
         </div>
       )}
-      <div className="hint">{ONAY_KURALI}</div>
-      <div className="hint">Seviyeleri yalnızca Genel Müdür, IT ve Bölüm Sorumluları görür.</div>
+      <div className="hint">{t(ONAY_KURALI)}</div>
+      <div className="hint">{t('Seviyeleri yalnızca Genel Müdür, IT ve Bölüm Sorumluları görür.')}</div>
     </div>
   )
 }
@@ -277,7 +278,7 @@ function AddPersonDialog({ data, onClose, onSaved }: { data: Workshop; onClose: 
     e.preventDefault()
     if (busy) return
     if (!isValidUsername(username)) {
-      setError('Kullanıcı adı en az 3 karakter olmalı.')
+      setError(t('Kullanıcı adı en az 3 karakter olmalı.'))
       return
     }
     setBusy(true)
@@ -305,9 +306,9 @@ function AddPersonDialog({ data, onClose, onSaved }: { data: Workshop; onClose: 
   }
 
   return (
-    <Dialog title="Kişi ekle" onClose={onClose}>
+    <Dialog title={t('Kişi ekle')} onClose={onClose}>
       <form onSubmit={submit} className="dialog-body">
-        <Field label="Ad soyad">
+        <Field label={t('Ad soyad')}>
           {(id) => (
             <input
               id={id}
@@ -323,7 +324,7 @@ function AddPersonDialog({ data, onClose, onSaved }: { data: Workshop; onClose: 
             />
           )}
         </Field>
-        <Field label="Kullanıcı adı" hint="Kişi bu adla giriş yapar.">
+        <Field label={t('Kullanıcı adı')} hint={t('Kişi bu adla giriş yapar.')}>
           {(id) => (
             <input
               id={id}
@@ -341,7 +342,7 @@ function AddPersonDialog({ data, onClose, onSaved }: { data: Workshop; onClose: 
             />
           )}
         </Field>
-        <Field label="İlk şifre" hint={`En az ${MIN_PASSWORD_LENGTH} karakter. Kişi sonra kendisi değiştirebilir.`}>
+        <Field label={t('İlk şifre')} hint={t('En az {n} karakter. Kişi sonra kendisi değiştirebilir.', { n: MIN_PASSWORD_LENGTH })}>
           {(id) => (
             <input
               id={id}
@@ -369,7 +370,7 @@ function AddPersonDialog({ data, onClose, onSaved }: { data: Workshop; onClose: 
         />
         <ErrorNote>{error}</ErrorNote>
         <button type="submit" className="btn btn-primary btn-big press" disabled={busy}>
-          {busy ? 'Ekleniyor…' : 'Kişiyi ekle'}
+          {busy ? t('Ekleniyor…') : t('Kişiyi ekle')}
         </button>
       </form>
     </Dialog>
@@ -417,7 +418,7 @@ function EditPersonDialog({
   function save(e: FormEvent) {
     e.preventDefault()
     if (isCeo && username !== person.username && !isValidUsername(username)) {
-      setError('Kullanıcı adı en az 3 karakter olmalı.')
+      setError(t('Kullanıcı adı en az 3 karakter olmalı.'))
       return
     }
     void guard(async () => {
@@ -465,7 +466,7 @@ function EditPersonDialog({
   return (
     <Dialog title={person.full_name} subtitle={person.username} onClose={onClose}>
       <form onSubmit={save} className="dialog-body">
-        <Field label="Ad soyad">
+        <Field label={t('Ad soyad')}>
           {(id) => (
             <input
               id={id}
@@ -478,7 +479,7 @@ function EditPersonDialog({
           )}
         </Field>
         {isCeo ? (
-          <Field label="Kullanıcı adı" hint="Değiştirirseniz kişi yeni adla giriş yapar; şifresi aynı kalır.">
+          <Field label={t('Kullanıcı adı')} hint={t('Değiştirirseniz kişi yeni adla giriş yapar; şifresi aynı kalır.')}>
             {(id) => (
               <input
                 id={id}
@@ -506,8 +507,8 @@ function EditPersonDialog({
         />
         {isCeo ? (
           <Field
-            label="Yeni şifre ver"
-            hint="Kişi şifresini unuttuysa buraya yenisini yazın. Değiştirmek istemiyorsanız boş bırakın."
+            label={t('Yeni şifre ver')}
+            hint={t('Kişi şifresini unuttuysa buraya yenisini yazın. Değiştirmek istemiyorsanız boş bırakın.')}
           >
             {(id) => (
               <input
@@ -526,7 +527,7 @@ function EditPersonDialog({
         ) : null}
         <ErrorNote>{error}</ErrorNote>
         <button type="submit" className="btn btn-primary btn-big press" disabled={busy}>
-          {busy ? 'Kaydediliyor…' : 'Kaydet'}
+          {busy ? t('Kaydediliyor…') : t('Kaydet')}
         </button>
       </form>
 
@@ -534,18 +535,18 @@ function EditPersonDialog({
         confirmRemove ? (
           <div className="dialog-foot">
             <div className="note note-error">
-              {person.full_name} artık giriş yapamayacak. Geçmiş işlerde adı görünmeye devam eder.
+              {t('{name} artık giriş yapamayacak. Geçmiş işlerde adı görünmeye devam eder.', { name: person.full_name })}
             </div>
             <button type="button" className="btn btn-danger btn-big press" disabled={busy} onClick={remove}>
-              Evet, kişiyi sil
+              {t('Evet, kişiyi çıkar')}
             </button>
             <button type="button" className="btn btn-quiet btn-big press" onClick={() => setConfirmRemove(false)}>
-              Vazgeç
+              {t('Vazgeç')}
             </button>
           </div>
         ) : (
           <button type="button" className="btn btn-danger btn-big press" onClick={() => setConfirmRemove(true)}>
-            Kişiyi sil
+            {t('Kişiyi çıkar')}
           </button>
         )
       ) : null}

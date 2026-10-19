@@ -1,6 +1,7 @@
 import { EditableList } from '../components/EditableList'
 import { BackToSettings } from '../components/Shell'
 import { ErrorNote, Spinner } from '../components/ui'
+import { t } from '../lib/i18n'
 import { ONAY_KURALI, supabase } from '../lib/supabase'
 import { useWorkshop } from '../lib/workshop'
 
@@ -16,8 +17,8 @@ export function Uzmanliklar() {
       <BackToSettings />
       <div className="page-head">
         <div>
-          <h1>Uzmanlıklar</h1>
-          <div className="sub">İmalattaki kişilerin uzmanlıkları. Kişinin uzmanlığını ve seviyesini Ekip'te seçin.</div>
+          <h1>{t('Uzmanlıklar')}</h1>
+          <div className="sub">{t("İmalattaki kişilerin uzmanlıkları. Kişinin uzmanlığını ve seviyesini Ekip'te seçin.")}</div>
         </div>
       </div>
       <ErrorNote>{error}</ErrorNote>
@@ -27,28 +28,34 @@ export function Uzmanliklar() {
         )
       ) : !data.ready ? (
         <div className="card empty">
-          Uzmanlıklar için veritabanı güncellemesi gerekiyor: supabase/migrations klasöründeki 0008 dosyası henüz
-          çalıştırılmamış.
+          {t('Uzmanlıklar için veritabanı güncellemesi gerekiyor: supabase/migrations klasöründeki 0008 dosyası henüz çalıştırılmamış.')}
         </div>
       ) : (
-        <section className="stack narrow-section" aria-label="Uzmanlıklar">
+        <section className="stack narrow-section" aria-label={t('Uzmanlıklar')}>
           <EditableList
             items={data.uzmanliklar}
-            noun="uzmanlık"
-            placeholder="Örnek: Montajcı"
-            note={(u) => (people(u.id) ? `${people(u.id)} kişi` : '')}
+            id="uzmanlik"
+            texts={{
+              empty: t('Henüz uzmanlık yok.'),
+              nameLabel: t('Uzmanlık adı'),
+              newLabel: t('Yeni uzmanlık'),
+              deleteLabel: (u) => t('{name} uzmanlık sil', { name: u.name }),
+            }}
+            placeholder={t('Örnek: Montajcı')}
+            note={(u) => (people(u.id) ? t('{n} kişi', { n: people(u.id) }) : '')}
             deleteWarning={(u) => {
-              const parts = [
-                people(u.id) ? `${people(u.id)} kişiden` : null,
-                stepTypes(u.id) ? `${stepTypes(u.id)} adım türünden` : null,
-              ].filter(Boolean)
-              return parts.length ? `${u.name}: ${parts.join(' ve ')} kaldırılır.` : null
+              const kisi = people(u.id)
+              const tur = stepTypes(u.id)
+              if (kisi && tur) return t('{name}: {kisi} kişiden ve {tur} adım türünden kaldırılır.', { name: u.name, kisi, tur })
+              if (kisi) return t('{name}: {n} kişiden kaldırılır.', { name: u.name, n: kisi })
+              if (tur) return t('{name}: {n} adım türünden kaldırılır.', { name: u.name, n: tur })
+              return null
             }}
             onCreate={(name) => change(() => supabase.from('uzmanliklar').insert({ name }))}
             onRename={(u, name) => change(() => supabase.from('uzmanliklar').update({ name }).eq('id', u.id))}
             onDelete={(u) => change(() => supabase.from('uzmanliklar').delete().eq('id', u.id))}
           />
-          <div className="hint">{ONAY_KURALI}</div>
+          <div className="hint">{t(ONAY_KURALI)}</div>
         </section>
       )}
     </div>

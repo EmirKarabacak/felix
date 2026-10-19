@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { ErrorNote, Field, Icon } from '../components/ui'
 import { callApi } from '../lib/api'
 import { friendly } from '../lib/errors'
+import { t } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 import { MIN_PASSWORD_LENGTH, isValidUsername, normalizeUsername, usernameToEmail } from '../../shared/username'
 
@@ -18,7 +19,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
     e.preventDefault()
     if (busy) return
     if (!isValidUsername(username)) {
-      setError('Kullanıcı adı en az 3 karakter olmalı.')
+      setError(t('Kullanıcı adı en az 3 karakter olmalı.'))
       return
     }
     setBusy(true)
@@ -40,11 +41,11 @@ export function Setup({ onDone }: { onDone: () => void }) {
           <div className="gate-logo">
             <Icon name="drop" size={38} />
           </div>
-          <h1>Felix'i kur</h1>
-          <div className="sub">İlk hesap Genel Müdür hesabıdır. Diğer herkesi bu hesapla eklersiniz.</div>
+          <h1>{t("Felix'i kur")}</h1>
+          <div className="sub">{t('İlk hesap Genel Müdür hesabıdır. Diğer herkesi bu hesapla eklersiniz.')}</div>
         </div>
         <form onSubmit={submit}>
-          <Field label="Kurulum kodu" hint="Yayın ayarlarında FELIX_SETUP_CODE olarak belirlediğiniz ifade.">
+          <Field label={t('Kurulum kodu')} hint={t('Yayın ayarlarında FELIX_SETUP_CODE olarak belirlediğiniz ifade.')}>
             {(id) => (
               <input
                 id={id}
@@ -57,7 +58,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
               />
             )}
           </Field>
-          <Field label="Ad soyad">
+          <Field label={t('Ad soyad')}>
             {(id) => (
               <input
                 id={id}
@@ -69,7 +70,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
               />
             )}
           </Field>
-          <Field label="Kullanıcı adı">
+          <Field label={t('Kullanıcı adı')}>
             {(id) => (
               <input
                 id={id}
@@ -84,7 +85,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
               />
             )}
           </Field>
-          <Field label="Şifre" hint={`En az ${MIN_PASSWORD_LENGTH} karakter.`}>
+          <Field label={t('Şifre')} hint={t('En az {n} karakter.', { n: MIN_PASSWORD_LENGTH })}>
             {(id) => (
               <input
                 id={id}
@@ -100,7 +101,7 @@ export function Setup({ onDone }: { onDone: () => void }) {
           </Field>
           <ErrorNote>{error}</ErrorNote>
           <button type="submit" className="btn btn-primary btn-big press" disabled={busy}>
-            {busy ? 'Oluşturuluyor…' : 'Genel Müdür hesabını oluştur'}
+            {busy ? t('Oluşturuluyor…') : t('Genel Müdür hesabını oluştur')}
           </button>
         </form>
       </div>

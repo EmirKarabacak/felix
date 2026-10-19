@@ -3,6 +3,7 @@ import { StatusBadge, StepDialog } from '../components/StepDialog'
 import { TalepList } from '../components/Talepler'
 import { ErrorNote, Spinner } from '../components/ui'
 import { useProfile } from '../lib/auth'
+import { locale, t } from '../lib/i18n'
 import { canHandleTalep, formatDay, isOpen, useWorkshop, type Step } from '../lib/workshop'
 
 const RECENT_DAYS = 7
@@ -23,12 +24,12 @@ export function Islerim() {
     const byDue = (a: Step, b: Step) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999')
     const since = Date.now() - RECENT_DAYS * 24 * 3600 * 1000
     return [
-      { title: 'Sorun bildirilenler', steps: mine.filter((s) => s.status === 'problem').sort(byDue) },
-      { title: 'Devam eden', steps: mine.filter((s) => s.status === 'active').sort(byDue) },
-      { title: 'Bekleyen', steps: mine.filter((s) => s.status === 'waiting').sort(byDue) },
-      { title: 'Onay bekleyen', steps: mine.filter((s) => s.status === 'review').sort(byDue) },
+      { title: t('Sorun bildirilenler'), steps: mine.filter((s) => s.status === 'problem').sort(byDue) },
+      { title: t('Devam eden'), steps: mine.filter((s) => s.status === 'active').sort(byDue) },
+      { title: t('Bekleyen'), steps: mine.filter((s) => s.status === 'waiting').sort(byDue) },
+      { title: t('Onay bekleyen'), steps: mine.filter((s) => s.status === 'review').sort(byDue) },
       {
-        title: 'Son bitenler',
+        title: t('Son bitenler'),
         steps: mine
           .filter((s) => s.status === 'done' && s.finished_at && new Date(s.finished_at).getTime() >= since)
           .sort((a, b) => (b.finished_at ?? '').localeCompare(a.finished_at ?? '')),
@@ -42,10 +43,10 @@ export function Islerim() {
     if (!data) return []
     const since = Date.now() - RECENT_DAYS * 24 * 3600 * 1000
     return data.talepler
-      .filter((t) =>
-        isOpen(t)
-          ? canHandleTalep(data, me, t) || t.created_by === me.id
-          : t.created_by === me.id && !!t.closed_at && new Date(t.closed_at).getTime() >= since,
+      .filter((talep) =>
+        isOpen(talep)
+          ? canHandleTalep(data, me, talep) || talep.created_by === me.id
+          : talep.created_by === me.id && !!talep.closed_at && new Date(talep.closed_at).getTime() >= since,
       )
       .sort((a, b) => Number(isOpen(b)) - Number(isOpen(a)) || b.created_at.localeCompare(a.created_at))
   }, [data, me])
@@ -55,9 +56,9 @@ export function Islerim() {
       <div className="page-head">
         <div>
           <div className="sub">
-            {new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' }).format(new Date())}
+            {new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'long', weekday: 'long' }).format(new Date())}
           </div>
-          <h1>İşlerim</h1>
+          <h1>{t('İşlerim')}</h1>
         </div>
       </div>
 
@@ -68,13 +69,13 @@ export function Islerim() {
           <Spinner />
         )
       ) : groups.length === 0 && talepler.length === 0 ? (
-        <div className="card empty">Size atanmış bir iş yok.</div>
+        <div className="card empty">{t('Size atanmış bir iş yok.')}</div>
       ) : (
         <>
         {talepler.length ? (
-          <section className="stack" aria-label="Talepler">
-            <h3>Talepler</h3>
-            <TalepList talepler={talepler} where label="Talepler" />
+          <section className="stack" aria-label={t('Talepler')}>
+            <h3>{t('Talepler')}</h3>
+            <TalepList talepler={talepler} where label={t('Talepler')} />
           </section>
         ) : null}
         {groups.map((g) => (
@@ -90,9 +91,9 @@ export function Islerim() {
                       <StatusBadge step={s} />
                     </span>
                     <span className="job-name">{s.name}</span>
-                    {s.review_note && s.status !== 'review' ? <span className="badge status-problem">Geri gönderildi</span> : null}
+                    {s.review_note && s.status !== 'review' ? <span className="badge status-problem">{t('Geri gönderildi')}</span> : null}
                     <span className="sub">{project?.name}</span>
-                    {s.due_date ? <span className="sub">Bitiş: {formatDay(s.due_date)}</span> : null}
+                    {s.due_date ? <span className="sub">{t('Bitiş: {date}', { date: formatDay(s.due_date) })}</span> : null}
                   </button>
                 )
               })}

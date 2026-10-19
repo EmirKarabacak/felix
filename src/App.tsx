@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { ErrorBoundary, Spinner } from './components/ui'
 import { Shell } from './components/Shell'
 import { useAuth } from './lib/auth'
+import { t } from './lib/i18n'
 import { canManage, isConfigured, supabase } from './lib/supabase'
 import { Ekip } from './pages/Ekip'
 import { Login } from './pages/Login'
@@ -24,8 +25,7 @@ export function App() {
       <div className="gate">
         <div className="gate-inner">
           <div className="note note-error" role="alert">
-            Felix henüz veritabanına bağlanmadı. VITE_SUPABASE_URL ve VITE_SUPABASE_ANON_KEY ayarlarını ekleyip
-            siteyi yeniden yayınlayın.
+            {t('Felix henüz veritabanına bağlanmadı. VITE_SUPABASE_URL ve VITE_SUPABASE_ANON_KEY ayarlarını ekleyip siteyi yeniden yayınlayın.')}
           </div>
         </div>
       </div>
@@ -73,18 +73,18 @@ export function App() {
 /** Explains, in plain words, why the app cannot talk to its database. */
 function diagnose(message: string): string {
   if (/has_users|schema cache|PGRST202|does not exist/i.test(message)) {
-    return 'Veritabanı henüz kurulmamış: supabase/migrations klasöründeki SQL, Supabase SQL Editor içinde çalıştırılmamış.'
+    return t('Veritabanı henüz kurulmamış: supabase/migrations klasöründeki SQL, Supabase SQL Editor içinde çalıştırılmamış.')
   }
   if (/api key|apikey|jwt|unauthorized|401/i.test(message)) {
-    return 'Anahtar hatalı: Vercel ayarlarındaki VITE_SUPABASE_ANON_KEY, Supabase projesindeki anon (publishable) anahtarla aynı olmalı.'
+    return t('Anahtar hatalı: Vercel ayarlarındaki VITE_SUPABASE_ANON_KEY, Supabase projesindeki anon (publishable) anahtarla aynı olmalı.')
   }
   if (/invalid path/i.test(message)) {
-    return 'Veritabanı adresi hatalı: Vercel ayarlarındaki VITE_SUPABASE_URL yalnızca https://....supabase.co biçiminde olmalı.'
+    return t('Veritabanı adresi hatalı: Vercel ayarlarındaki VITE_SUPABASE_URL yalnızca https://....supabase.co biçiminde olmalı.')
   }
   if (/failed to fetch|networkerror|load failed/i.test(message)) {
-    return 'Veritabanına ulaşılamıyor: Vercel ayarlarındaki VITE_SUPABASE_URL hatalı olabilir ya da internet bağlantısı yok.'
+    return t('Veritabanına ulaşılamıyor: Vercel ayarlarındaki VITE_SUPABASE_URL hatalı olabilir ya da internet bağlantısı yok.')
   }
-  return 'Veritabanı beklenmeyen bir yanıt verdi.'
+  return t('Veritabanı beklenmeyen bir yanıt verdi.')
 }
 
 /** Shows first-time setup while Felix has no people at all, and sign-in afterwards. */
@@ -101,7 +101,7 @@ function SignedOut({ notice }: { notice: string | null }) {
       if (!alive) return
       // A failed check must be shown, not hidden behind the sign-in form:
       // nobody can sign in while the database is unreachable or not set up.
-      if (error) setProblem(error.message || 'Bilinmeyen hata')
+      if (error) setProblem(error.message || t('Bilinmeyen hata'))
       else setHasUsers(Boolean(data))
     })
     return () => {
@@ -116,9 +116,9 @@ function SignedOut({ notice }: { notice: string | null }) {
           <div className="note note-error" role="alert">
             {diagnose(problem)}
           </div>
-          <div className="sub">Ayrıntı: {problem}</div>
+          <div className="sub">{t('Ayrıntı: {detail}', { detail: problem })}</div>
           <button type="button" className="btn btn-tint btn-big press" onClick={() => setAttempt((n) => n + 1)}>
-            Tekrar dene
+            {t('Tekrar dene')}
           </button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import { t } from './i18n'
 import { fetchProfiles, supabase, type Profile } from './supabase'
 
 type AuthState =
@@ -35,13 +36,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: rows, error } = await fetchProfiles({ id: userId })
     const data = rows?.[0]
     if (error) {
-      setNotice('Bilgileriniz yüklenemedi. Bağlantınızı kontrol edip tekrar giriş yapın.')
+      setNotice(t('Bilgileriniz yüklenemedi. Bağlantınızı kontrol edip tekrar giriş yapın.'))
       await supabase.auth.signOut()
       return
     }
     if (!data || !data.active) {
       // The account was removed while this device was still signed in.
-      setNotice('Bu hesap artık kullanılmıyor. Yöneticinize söyleyin.')
+      setNotice(t("Bu hesap artık kullanılmıyor. Genel Müdür veya IT'ye söyleyin."))
       await supabase.auth.signOut()
       return
     }

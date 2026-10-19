@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
+import { t } from '../lib/i18n'
 import { ErrorNote, Icon } from './ui'
 
 type Item = { id: string; name: string }
@@ -9,7 +10,8 @@ type Item = { id: string; name: string }
  */
 export function EditableList({
   items,
-  noun,
+  id,
+  texts,
   placeholder,
   note,
   extra,
@@ -19,8 +21,19 @@ export function EditableList({
   onDelete,
 }: {
   items: Item[]
-  /** What one item is called, lower case: "adım türü". */
-  noun: string
+  /** Names the new-item field: yeni-<id>. */
+  id: string
+  /** The list's own words, already translated: what an item is called in each place. */
+  texts: {
+    /** "Henüz adım türü yok." */
+    empty: string
+    /** "Adım türü adı", the rename field. */
+    nameLabel: string
+    /** "Yeni adım türü", the new-item field. */
+    newLabel: string
+    /** "Kaynak adım türü sil", the delete button of one row. */
+    deleteLabel: (item: Item) => string
+  }
   placeholder: string
   /** Small text on the right of a row, e.g. how many people have it. */
   note?: (item: Item) => string
@@ -37,8 +50,7 @@ export function EditableList({
   const [removing, setRemoving] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const inputId = `yeni-${noun.replace(/\s+/g, '-')}`
-  const Noun = noun.charAt(0).toLocaleUpperCase('tr') + noun.slice(1)
+  const inputId = `yeni-${id}`
 
   async function run(work: () => Promise<string | null>, done: () => void) {
     if (busy) return
@@ -72,7 +84,7 @@ export function EditableList({
   return (
     <>
       <div className="card name-list rows">
-        {items.length === 0 ? <div className="empty">Henüz {noun} yok.</div> : null}
+        {items.length === 0 ? <div className="empty">{texts.empty}</div> : null}
         {items.map((item) =>
           renaming?.id === item.id ? (
             <form key={item.id} className="name-row" onSubmit={rename}>
@@ -80,32 +92,32 @@ export function EditableList({
                 className="input"
                 value={renaming.name}
                 onChange={(e) => setRenaming({ id: item.id, name: e.target.value })}
-                aria-label={`${Noun} adı`}
+                aria-label={texts.nameLabel}
                 autoFocus
                 maxLength={80}
               />
               <button type="submit" className="btn btn-tint press" disabled={busy}>
-                Kaydet
+                {t('Kaydet')}
               </button>
             </form>
           ) : removing === item.id ? (
             <div key={item.id} className="name-row">
-              <span className="label-text">{deleteWarning?.(item) ?? `${item.name} silinsin mi?`}</span>
+              <span className="label-text">{deleteWarning?.(item) ?? t('{name} silinsin mi?', { name: item.name })}</span>
               <button
                 type="button"
                 className="btn btn-danger press"
                 disabled={busy}
                 onClick={() => void run(() => onDelete(item), () => setRemoving(null))}
               >
-                Sil
+                {t('Sil')}
               </button>
               <button type="button" className="btn btn-quiet press" onClick={() => setRemoving(null)}>
-                Vazgeç
+                {t('Vazgeç')}
               </button>
             </div>
           ) : (
             <div key={item.id} className="name-row">
-              <button type="button" className="label press" onClick={() => setRenaming(item)} title="Adını değiştir">
+              <button type="button" className="label press" onClick={() => setRenaming(item)} title={t('Adını değiştir')}>
                 {item.name}
               </button>
               <span className="count">{note?.(item) ?? ''}</span>
@@ -113,7 +125,7 @@ export function EditableList({
               <button
                 type="button"
                 className="btn btn-icon press"
-                aria-label={`${item.name} ${noun} sil`}
+                aria-label={texts.deleteLabel(item)}
                 onClick={() => setRemoving(item.id)}
               >
                 <Icon name="trash" size={20} />
@@ -124,7 +136,7 @@ export function EditableList({
       </div>
       <ErrorNote>{error}</ErrorNote>
       <form onSubmit={create} className="field">
-        <label htmlFor={inputId}>Yeni {noun}</label>
+        <label htmlFor={inputId}>{texts.newLabel}</label>
         <div className="inline-form">
           <input
             id={inputId}
@@ -135,7 +147,7 @@ export function EditableList({
             maxLength={80}
           />
           <button type="submit" className="btn btn-dark press" disabled={busy || !newName.trim()}>
-            Oluştur
+            {t('Oluştur')}
           </button>
         </div>
       </form>

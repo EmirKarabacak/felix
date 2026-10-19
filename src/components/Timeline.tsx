@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { locale, t } from '../lib/i18n'
 import { formatDay, isFinished, shownStatus, today, type Project, type Workshop } from '../lib/workshop'
 
 const DAY_PX = 14
 const ROW_PX = 56
-const MONTH = new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' })
 
 /** Whole days since 1970 for a "YYYY-MM-DD" day. Plain arithmetic, so no time-zone or clock-change surprises. */
 function dayNumber(day: string): number {
@@ -87,12 +87,13 @@ export function Timeline({ projects, data }: { projects: Project[]; data: Worksh
   const x = (day: number) => (day - from) * DAY_PX
 
   const { months, weeks } = useMemo(() => {
+    const month = new Intl.DateTimeFormat(locale(), { month: 'long', year: 'numeric' })
     const months: { left: number; label: string }[] = []
     const weeks: { left: number; label: string }[] = []
     for (let d = from; d < from + days; d++) {
       const date = dayOf(d)
       if (date.getUTCDate() === 1 || d === from) {
-        months.push({ left: (d - from) * DAY_PX, label: MONTH.format(new Date(date.getUTCFullYear(), date.getUTCMonth(), 1)) })
+        months.push({ left: (d - from) * DAY_PX, label: month.format(new Date(date.getUTCFullYear(), date.getUTCMonth(), 1)) })
       }
       if (date.getUTCDay() === 1) weeks.push({ left: (d - from) * DAY_PX, label: String(date.getUTCDate()) })
     }
@@ -111,10 +112,10 @@ export function Timeline({ projects, data }: { projects: Project[]; data: Worksh
 
   return (
     <div className="stack">
-      <div className="card tl" ref={scroller} tabIndex={0} role="group" aria-label="Zaman çizelgesi">
+      <div className="card tl" ref={scroller} tabIndex={0} role="group" aria-label={t('Zaman çizelgesi')}>
         <div className="tl-inner" style={{ width: `calc(var(--tl-label) + ${width}px)` }}>
           <div className="tl-head">
-            <div className="tl-corner">Proje</div>
+            <div className="tl-corner">{t('Proje')}</div>
             <div className="tl-axis" style={{ width }}>
               {months.map((m) => (
                 <span key={m.left} className="tl-month" style={{ left: m.left }}>
@@ -133,13 +134,13 @@ export function Timeline({ projects, data }: { projects: Project[]; data: Worksh
             const left = x(r.start)
             const barWidth = Math.max((r.end - r.start + 1) * DAY_PX, DAY_PX * 2)
             const label = [r.project.code, r.project.name].filter(Boolean).join(' · ')
-            const dates = `${formatDay(localDayOf(r.start))} – ${r.openEnded ? 'teslim tarihi yok' : formatDay(r.project.due_date)}`
+            const dates = `${formatDay(localDayOf(r.start))} – ${r.openEnded ? t('teslim tarihi yok') : formatDay(r.project.due_date)}`
             return (
               <div key={r.project.id} className="tl-row" style={{ height: ROW_PX }}>
                 <Link to={`/projeler/${r.project.id}`} className="tl-label press">
                   <span className="tl-name">{r.project.name}</span>
                   <span className="sub">
-                    {r.total ? `${r.done} / ${r.total} adım` : 'Adım yok'}
+                    {r.total ? t('{done} / {total} adım', { done: r.done, total: r.total }) : t('Adım yok')}
                     {r.project.due_date ? ` · ${formatDay(r.project.due_date)}` : ''}
                   </span>
                 </Link>
@@ -151,7 +152,7 @@ export function Timeline({ projects, data }: { projects: Project[]; data: Worksh
                     to={`/projeler/${r.project.id}`}
                     className={`tl-bar tl-${r.tone}${r.openEnded ? ' tl-open' : ''}`}
                     style={{ left, width: barWidth }}
-                    aria-label={`${label}, ${dates}, ${r.done} / ${r.total} adım bitti`}
+                    aria-label={`${label}, ${dates}, ${t('{done} / {total} adım bitti', { done: r.done, total: r.total })}`}
                     title={`${label}\n${dates}`}
                   >
                     <span className="tl-fill" style={{ width: r.total ? `${(r.done / r.total) * 100}%` : 0 }} />
@@ -165,13 +166,12 @@ export function Timeline({ projects, data }: { projects: Project[]; data: Worksh
           })}
 
           <div className="tl-today" style={{ left: `calc(var(--tl-label) + ${x(now) + DAY_PX / 2}px)` }} aria-hidden="true">
-            <span>Bugün</span>
+            <span>{t('Bugün')}</span>
           </div>
         </div>
       </div>
       <div className="sub">
-        Çubuk, projenin açıldığı günden teslim tarihine uzanır; dolu kısmı biten adımları gösterir. Noktalar adımların bitiş
-        tarihleri, dikey çizgi bugündür. Kesik uçlu çubukların teslim tarihi yoktur.
+        {t('Çubuk, projenin açıldığı günden teslim tarihine uzanır; dolu kısmı biten adımları gösterir. Noktalar adımların bitiş tarihleri, dikey çizgi bugündür. Kesik uçlu çubukların teslim tarihi yoktur.')}
       </div>
     </div>
   )

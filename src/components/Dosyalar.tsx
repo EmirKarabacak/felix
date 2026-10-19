@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useProfile } from '../lib/auth'
 import { deleteFile, downloadLink, formatSize, uploadFile } from '../lib/dosyalar'
 import { friendly } from '../lib/errors'
+import { t } from '../lib/i18n'
 import { canManageFiles, formatMoment, useWorkshop, type Dosya } from '../lib/workshop'
 import { ErrorNote, Icon } from './ui'
 
@@ -35,15 +36,17 @@ function FileRow({
     return (
       <div className="file-row">
         <span className="file-text">
-          <span className="file-name">{file.name} silinsin mi?</span>
-          <span className="sub">Eski sürümlere taşınır; Genel Müdür, IT, Bölüm Sorumluları ve Tasarım açabilir.</span>
+          <span className="file-name">{t('{name} silinsin mi?', { name: file.name })}</span>
+          <span className="sub">
+            {t('Eski sürümlere taşınır; Genel Müdür, IT, Bölüm Sorumluları ve Tasarım açabilir.')}
+          </span>
         </span>
         <span className="file-buttons">
           <button type="button" className="btn btn-danger press" disabled={busy} onClick={onDelete}>
-            Sil
+            {t('Sil')}
           </button>
           <button type="button" className="btn btn-quiet press" onClick={() => setConfirm(false)}>
-            Vazgeç
+            {t('Vazgeç')}
           </button>
         </span>
       </div>
@@ -56,7 +59,7 @@ function FileRow({
         type="button"
         className="file-open press"
         onClick={async () => onError(await open(file))}
-        aria-label={`${file.name} indir`}
+        aria-label={t('{name} indir', { name: file.name })}
       >
         <span className="file-icon">
           <Icon name="doc" size={22} />
@@ -68,7 +71,11 @@ function FileRow({
               formatSize(file.size),
               who,
               formatMoment(file.created_at),
-              old ? (file.silindi ? `Silindi ${formatMoment(file.eski_at)}` : `Yenisi geldi ${formatMoment(file.eski_at)}`) : null,
+              old
+                ? file.silindi
+                  ? t('Silindi {time}', { time: formatMoment(file.eski_at) })
+                  : t('Yenisi geldi {time}', { time: formatMoment(file.eski_at) })
+                : null,
             ]
               .filter(Boolean)
               .join(' · ')}
@@ -79,7 +86,7 @@ function FileRow({
         </span>
       </button>
       {canDelete && !old ? (
-        <button type="button" className="btn btn-icon press" aria-label={`${file.name} sil`} onClick={() => setConfirm(true)}>
+        <button type="button" className="btn btn-icon press" aria-label={t('{name} sil', { name: file.name })} onClick={() => setConfirm(true)}>
           <Icon name="trash" size={20} />
         </button>
       ) : null}
@@ -138,7 +145,7 @@ export function FileSection({
     // The Ana doküman is one file; elsewhere several can be picked at once.
     const picked = ana ? [list[0]] : Array.from(list)
     for (const [i, file] of picked.entries()) {
-      setProgress(picked.length > 1 ? `Yükleniyor ${i + 1} / ${picked.length}…` : 'Yükleniyor…')
+      setProgress(picked.length > 1 ? t('Yükleniyor {i} / {total}…', { i: i + 1, total: picked.length }) : t('Yükleniyor…'))
       const failed = await change(() => uploadFile(file, { projectId, stepId, ana }))
       if (failed) {
         setError(`${file.name}: ${failed}`)
@@ -198,7 +205,7 @@ export function FileSection({
         <div className="old-files">
           <button type="button" className="btn btn-quiet press" aria-expanded={oldOpen} onClick={() => setOldOpen(!oldOpen)}>
             <Icon name={oldOpen ? 'up' : 'down'} size={18} />
-            Eski sürümler ({old.length})
+            {t('Eski sürümler ({n})', { n: old.length })}
           </button>
           {oldOpen ? (
             <div className="card rows file-list">

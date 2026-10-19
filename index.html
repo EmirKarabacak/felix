@@ -10,6 +10,14 @@
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icon.svg" />
     <title>Felix</title>
+    <script>
+      // The theme chosen in Ayarlar, before anything is drawn, so a dark screen never flashes white.
+      try {
+        var theme = localStorage.getItem('felix.theme')
+        if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme)
+        if (localStorage.getItem('felix.lang') === 'en') document.documentElement.lang = 'en'
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

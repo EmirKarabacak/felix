@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useProfile } from '../lib/auth'
+import { t } from '../lib/i18n'
 import {
   TALEP_STATUS_LABEL,
   canHandleTalep,
@@ -14,9 +15,9 @@ import {
 import { ErrorNote, Icon } from './ui'
 
 /** "Malzeme eksik: 2" vana · 4 adet" or "Çizim hatalı" */
-export function talepTitle(t: Talep): string {
-  if (t.kind === 'cizim') return 'Çizim hatalı'
-  return ['Malzeme eksik: ' + (t.material ?? ''), t.quantity].filter(Boolean).join(' · ')
+export function talepTitle(talep: Talep): string {
+  if (talep.kind === 'cizim') return t('Çizim hatalı')
+  return [t('Malzeme eksik: {material}', { material: talep.material ?? '' }), talep.quantity].filter(Boolean).join(' · ')
 }
 
 const STATUS_TONE: Record<Talep['status'], string> = {
@@ -56,10 +57,10 @@ export function TalepCard({ talep, where = false }: { talep: Talep; where?: bool
 
   const handlerText = handler
     ? handler.id === me.id
-      ? 'Siz ilgileniyorsunuz'
-      : `${handler.full_name} ilgileniyor`
+      ? t('Siz ilgileniyorsunuz')
+      : t('{name} ilgileniyor', { name: handler.full_name })
     : open
-      ? 'Henüz kimse ilgilenmiyor'
+      ? t('Henüz kimse ilgilenmiyor')
       : null
 
   return (
@@ -70,7 +71,7 @@ export function TalepCard({ talep, where = false }: { talep: Talep; where?: bool
       <div className="talep-text">
         <div className="talep-top">
           <strong>{talepTitle(talep)}</strong>
-          <span className={`badge ${STATUS_TONE[talep.status]}`}>{TALEP_STATUS_LABEL[talep.status]}</span>
+          <span className={`badge ${STATUS_TONE[talep.status]}`}>{t(TALEP_STATUS_LABEL[talep.status])}</span>
         </div>
         {talep.note ? <div className="talep-note">{talep.note}</div> : null}
         {where ? (
@@ -79,14 +80,14 @@ export function TalepCard({ talep, where = false }: { talep: Talep; where?: bool
           </Link>
         ) : null}
         <div className="sub">
-          {[reporter ? `${reporter.full_name} bildirdi` : 'Bildirildi', formatMoment(talep.created_at)].join(', ')}
+          {[reporter ? t('{name} bildirdi', { name: reporter.full_name }) : t('Bildirildi'), formatMoment(talep.created_at)].join(', ')}
         </div>
         {talep.status === 'siparis' && talep.ordered_at ? (
-          <div className="sub">Sipariş verildi: {formatMoment(talep.ordered_at)}</div>
+          <div className="sub">{t('Sipariş verildi: {time}', { time: formatMoment(talep.ordered_at) })}</div>
         ) : null}
         {!open && talep.closed_at ? (
           <div className="sub">
-            {TALEP_STATUS_LABEL[talep.status]}: {formatMoment(talep.closed_at)}
+            {t(TALEP_STATUS_LABEL[talep.status])}: {formatMoment(talep.closed_at)}
             {closer ? `, ${closer.full_name}` : ''}
           </div>
         ) : null}
@@ -95,21 +96,21 @@ export function TalepCard({ talep, where = false }: { talep: Talep; where?: bool
           <div className="talep-actions">
             {handler?.id !== me.id ? (
               <button type="button" className="btn btn-tint press" disabled={busy} onClick={() => void act('ilgilen')}>
-                Ben ilgileniyorum
+                {t('Ben ilgileniyorum')}
               </button>
             ) : null}
             {talep.kind === 'malzeme' && talep.status === 'acik' ? (
               <button type="button" className="btn btn-quiet press" disabled={busy} onClick={() => void act('siparis')}>
-                Sipariş verildi
+                {t('Sipariş verildi')}
               </button>
             ) : null}
             {talep.kind === 'malzeme' ? (
               <button type="button" className="btn btn-go press" disabled={busy} onClick={() => void act('geldi')}>
-                Geldi
+                {t('Geldi')}
               </button>
             ) : (
               <button type="button" className="btn btn-go press" disabled={busy} onClick={() => void act('cozuldu')}>
-                Düzeltildi
+                {t('Düzeltildi')}
               </button>
             )}
           </div>
@@ -123,9 +124,9 @@ export function TalepCard({ talep, where = false }: { talep: Talep; where?: bool
 export function TalepList({ talepler, where = false, label }: { talepler: Talep[]; where?: boolean; label: string }) {
   return (
     <div className="card rows talepler" role="list" aria-label={label}>
-      {talepler.map((t) => (
-        <div key={t.id} role="listitem">
-          <TalepCard talep={t} where={where} />
+      {talepler.map((talep) => (
+        <div key={talep.id} role="listitem">
+          <TalepCard talep={talep} where={where} />
         </div>
       ))}
     </div>

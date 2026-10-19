@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { ErrorNote, Field, Icon } from '../components/ui'
 import { friendly } from '../lib/errors'
+import { t } from '../lib/i18n'
 import { rememberMe, supabase } from '../lib/supabase'
 import { loginIdToEmail } from '../../shared/username'
 
@@ -36,10 +37,10 @@ export function Login({ notice }: { notice: string | null }) {
             <Icon name="drop" size={38} />
           </div>
           <h1>Felix</h1>
-          <div className="sub">Atölye iş takibi</div>
+          <div className="sub">{t('Atölye iş takibi')}</div>
         </div>
         <form onSubmit={submit}>
-          <Field label="Kullanıcı adı">
+          <Field label={t('Kullanıcı adı')}>
             {(id) => (
               <input
                 id={id}
@@ -54,7 +55,7 @@ export function Login({ notice }: { notice: string | null }) {
               />
             )}
           </Field>
-          <Field label="Şifre">
+          <Field label={t('Şifre')}>
             {(id) => (
               <input
                 id={id}
@@ -69,8 +70,8 @@ export function Login({ notice }: { notice: string | null }) {
           </Field>
           <label className="switch-row">
             <span>
-              Beni hatırla
-              <span className="hint">Kapalıysa tarayıcı kapanınca çıkış yapılır.</span>
+              {t('Beni hatırla')}
+              <span className="hint">{t('Kapalıysa tarayıcı kapanınca çıkış yapılır.')}</span>
             </span>
             <input
               type="checkbox"
@@ -82,11 +83,11 @@ export function Login({ notice }: { notice: string | null }) {
           </label>
           <ErrorNote>{error}</ErrorNote>
           <button type="submit" className="btn btn-primary btn-big press" disabled={busy}>
-            {busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
+            {busy ? t('Giriş yapılıyor…') : t('Giriş yap')}
           </button>
         </form>
         <div className="foot">
-          Hesabınız yok mu veya şifrenizi mi unuttunuz? Genel Müdür veya IT'ye söyleyin, hesapları onlar oluşturur.
+          {t("Hesabınız yok mu veya şifrenizi mi unuttunuz? Genel Müdür veya IT'ye söyleyin, hesapları onlar oluşturur.")}
         </div>
       </div>
     </div>
