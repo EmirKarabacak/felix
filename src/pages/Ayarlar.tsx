@@ -1,16 +1,17 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { ErrorNote, Field, Icon, Switch, type IconName } from '../components/ui'
+import { ErrorNote, Field, Icon, Segmented, Switch, type IconName } from '../components/ui'
 import { useAuth, useProfile } from '../lib/auth'
 import { friendly } from '../lib/errors'
+import { setLang, setTheme, t, useSettings, type Lang, type Theme } from '../lib/i18n'
 import { canManage, rememberMe, rolLabel, supabase } from '../lib/supabase'
 import { useWorkshop } from '../lib/workshop'
 import { MIN_PASSWORD_LENGTH } from '../../shared/username'
 
-const LISTS: { to: string; label: string; note: string; icon: IconName }[] = [
-  { to: '/firmalar', label: 'Firmalar', note: 'Müşteri firmalar ve iletişim bilgileri', icon: 'building' },
-  { to: '/turler', label: 'Türler', note: 'Proje ve adım türleri', icon: 'layers' },
-  { to: '/uzmanliklar', label: 'Uzmanlıklar', note: 'İmalattaki uzmanlıklar: Kaynakçı, Elektrikçi…', icon: 'wrench' },
+const lists = (): { to: string; label: string; note: string; icon: IconName }[] => [
+  { to: '/firmalar', label: t('Firmalar'), note: t('Sipariş veren firmalar ve iletişim bilgileri'), icon: 'building' },
+  { to: '/turler', label: t('Türler'), note: t('Proje ve adım türleri'), icon: 'layers' },
+  { to: '/uzmanliklar', label: t('Uzmanlıklar'), note: t('İmalattaki uzmanlıklar: Kaynakçı, Elektrikçi…'), icon: 'wrench' },
 ]
 
 /** Everyone's account, plus the lists Genel Müdür, IT and Bölüm Sorumluları set up once. */
@@ -25,26 +26,26 @@ export function Ayarlar() {
     <div className="page settings">
       <div className="page-head">
         <div>
-          <h1>Ayarlar</h1>
+          <h1>{t('Ayarlar')}</h1>
           <div className="sub">{profile.full_name}</div>
         </div>
       </div>
 
-      <section className="stack" aria-label="Hesabım">
-        <h3>Hesabım</h3>
+      <section className="stack" aria-label={t('Hesabım')}>
+        <h3>{t('Hesabım')}</h3>
         <div className="card rows facts">
           <div className="fact">
-            <span>Kullanıcı adı</span>
+            <span>{t('Kullanıcı adı')}</span>
             <span className="value mono">{profile.username}</span>
           </div>
           <div className="fact">
-            <span>Rol</span>
-            <span className="value">{rolLabel(profile)}</span>
+            <span>{t('Rol')}</span>
+            <span className="value">{t(rolLabel(profile))}</span>
           </div>
           {bolum ? (
             <div className="fact">
-              <span>Bölüm</span>
-              <span className="value">{bolum}</span>
+              <span>{t('Bölüm')}</span>
+              <span className="value">{t(bolum)}</span>
             </div>
           ) : null}
           <RememberRow />
@@ -52,11 +53,13 @@ export function Ayarlar() {
         <PasswordForm />
       </section>
 
+      <Appearance />
+
       {manages ? (
-        <section className="stack" aria-label="Listeler">
-          <h3>Listeler</h3>
+        <section className="stack" aria-label={t('Listeler')}>
+          <h3>{t('Listeler')}</h3>
           <div className="card rows link-list">
-            {LISTS.map((l) => (
+            {lists().map((l) => (
               <Link key={l.to} to={l.to} className="link-row press">
                 <Icon name={l.icon} size={22} />
                 <span className="link-text">
@@ -72,24 +75,74 @@ export function Ayarlar() {
         </section>
       ) : null}
 
-      <section className="stack" aria-label="Ana ekrana ekle">
-        <h3>Felix'i ana ekrana ekle</h3>
+      <section className="stack" aria-label={t('Ana ekrana ekle')}>
+        <h3>{t("Felix'i ana ekrana ekle")}</h3>
         <div className="card home-guide">
           <p>
-            <strong>iPhone:</strong> Felix'i Safari'de açın, alttaki paylaş düğmesine (yukarı ok olan kare) dokunun,
-            ardından <strong>Ana Ekrana Ekle</strong>'yi seçin.
+            <strong>iPhone:</strong>{' '}
+            <WithButton
+              text={t("Felix'i Safari'de açın, alttaki paylaş düğmesine (yukarı ok olan kare) dokunun, ardından {button}'yi seçin.")}
+              button={t('Ana Ekrana Ekle')}
+            />
           </p>
           <p>
-            <strong>Android:</strong> Felix'i Chrome'da açın, sağ üstteki üç noktaya dokunun, ardından{' '}
-            <strong>Ana ekrana ekle</strong>'yi seçin.
+            <strong>Android:</strong>{' '}
+            <WithButton
+              text={t("Felix'i Chrome'da açın, sağ üstteki üç noktaya dokunun, ardından {button}'yi seçin.")}
+              button={t('Ana ekrana ekle')}
+            />
           </p>
         </div>
       </section>
 
       <button type="button" className="btn btn-danger btn-big press" onClick={() => void signOut()}>
-        Çıkış yap
+        {t('Çıkış yap')}
       </button>
     </div>
+  )
+}
+
+/** Language and theme, kept on this device. "Sistem" follows the phone's own light or dark setting. */
+function Appearance() {
+  const { lang, theme } = useSettings()
+  return (
+    <section className="stack" aria-label={t('Dil ve görünüm')}>
+      <h3>{t('Dil ve görünüm')}</h3>
+      <div className="card password-form">
+        {/* Each language is named in itself, so anyone can find their own. */}
+        <Segmented<Lang>
+          label={t('Dil')}
+          value={lang}
+          options={[
+            { value: 'tr', label: 'Türkçe' }, // i18n-ok
+            { value: 'en', label: 'English' },
+          ]}
+          onChange={setLang}
+        />
+        <Segmented<Theme>
+          label={t('Tema')}
+          value={theme}
+          options={[
+            { value: 'system', label: t('Sistem') },
+            { value: 'light', label: t('Açık|tema') },
+            { value: 'dark', label: t('Koyu') },
+          ]}
+          onChange={setTheme}
+        />
+      </div>
+    </section>
+  )
+}
+
+/** A sentence with the name of a phone's button, in bold, where {button} stands. */
+function WithButton({ text, button }: { text: string; button: string }) {
+  const [before, after = ''] = text.split('{button}')
+  return (
+    <>
+      {before}
+      <strong>{button}</strong>
+      {after}
+    </>
   )
 }
 
@@ -99,8 +152,8 @@ function RememberRow() {
   return (
     <label className="fact">
       <span>
-        Beni hatırla
-        <span className="sub block">Kapalıysa tarayıcı kapanınca oturum kapanır. Ortak telefonda kapatın.</span>
+        {t('Beni hatırla')}
+        <span className="sub block">{t('Kapalıysa tarayıcı kapanınca oturum kapanır. Ortak telefonda kapatın.')}</span>
       </span>
       <Switch
         checked={on}
@@ -139,7 +192,7 @@ function PasswordForm() {
 
   return (
     <form onSubmit={changePassword} className="card password-form">
-      <Field label="Yeni şifre" hint={`En az ${MIN_PASSWORD_LENGTH} karakter.`}>
+      <Field label={t('Yeni şifre')} hint={t('En az {n} karakter.', { n: MIN_PASSWORD_LENGTH })}>
         {(id) => (
           <input
             id={id}
@@ -159,11 +212,11 @@ function PasswordForm() {
       <ErrorNote>{error}</ErrorNote>
       {saved ? (
         <div className="note note-info" role="status">
-          Şifreniz değiştirildi.
+          {t('Şifreniz değiştirildi.')}
         </div>
       ) : null}
       <button type="submit" className="btn btn-tint btn-big press" disabled={busy}>
-        {busy ? 'Kaydediliyor…' : 'Şifremi değiştir'}
+        {busy ? t('Kaydediliyor…') : t('Şifremi değiştir')}
       </button>
     </form>
   )

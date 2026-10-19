@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useProfile } from '../lib/auth'
+import { t } from '../lib/i18n'
 import type { Panel } from '../lib/supabase'
 import { Icon, type IconName } from './ui'
 
+// Labels are Turkish, shown through t().
 type Tab = { to: string; label: string; icon: IconName }
 
-const ISLERIM: Tab = { to: '/islerim', label: 'İşlerim', icon: 'list' }
+const ISLERIM: Tab = { to: '/islerim', label: 'İşlerim', icon: 'list' } // i18n-ok
 const PROJELER: Tab = { to: '/projeler', label: 'Projeler', icon: 'folder' }
 const EKIP: Tab = { to: '/ekip', label: 'Ekip', icon: 'people' }
 const AYARLAR: Tab = { to: '/ayarlar', label: 'Ayarlar', icon: 'gear' }
@@ -32,14 +34,14 @@ export function Shell({ children }: { children: ReactNode }) {
           <Icon name="drop" size={24} />
           Felix
         </Link>
-        <nav className="topnav" aria-label="Bölümler">
-          {tabs.map((t) => (
-            <NavLink key={t.to} to={t.to} className="press">
-              {t.label}
+        <nav className="topnav" aria-label={t('Bölümler')}>
+          {tabs.map((tab) => (
+            <NavLink key={tab.to} to={tab.to} className="press">
+              {t(tab.label)}
             </NavLink>
           ))}
         </nav>
-        <Link to="/ayarlar" className="account press" aria-label={`${profile.full_name}: Ayarlar`}>
+        <Link to="/ayarlar" className="account press" aria-label={`${profile.full_name}: ${t('Ayarlar')}`}>
           <Icon name="person" size={20} />
           <span>{profile.full_name}</span>
         </Link>
@@ -47,13 +49,13 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <main>{children}</main>
 
-      <nav className="tabbar glass" aria-label="Bölümler">
-        {tabs.map((t) => (
-          <NavLink key={t.to} to={t.to} className="press">
+      <nav className="tabbar glass" aria-label={t('Bölümler')}>
+        {tabs.map((tab) => (
+          <NavLink key={tab.to} to={tab.to} className="press">
             {({ isActive }) => (
               <>
-                <Icon name={t.icon} size={25} filled={isActive} />
-                {t.label}
+                <Icon name={tab.icon} size={25} filled={isActive} />
+                {t(tab.label)}
               </>
             )}
           </NavLink>
@@ -68,7 +70,7 @@ export function BackToSettings() {
   return (
     <Link to="/ayarlar" className="back press">
       <Icon name="back" size={20} />
-      Ayarlar
+      {t('Ayarlar')}
     </Link>
   )
 }

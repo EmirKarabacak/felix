@@ -5,6 +5,7 @@ import { Timeline } from '../components/Timeline'
 import { Dialog, ErrorNote, Field, Icon, Spinner } from '../components/ui'
 import { useProfile } from '../lib/auth'
 import { friendly } from '../lib/errors'
+import { t } from '../lib/i18n'
 import { canManage, supabase } from '../lib/supabase'
 import {
   canHandleTalep,
@@ -34,8 +35,8 @@ export function ProgressStrip({ steps }: { steps: Step[] }) {
 }
 
 export function progressText(steps: Step[]): string {
-  if (steps.length === 0) return 'Henüz adım yok'
-  return `${steps.filter((s) => s.status === 'done').length} / ${steps.length} adım bitti`
+  if (steps.length === 0) return t('Henüz adım yok')
+  return t('{done} / {total} adım bitti', { done: steps.filter((s) => s.status === 'done').length, total: steps.length })
 }
 
 type Layout = 'list' | 'timeline'
@@ -70,8 +71,8 @@ export function Projeler() {
     finished.sort((a, b) => b.created_at.localeCompare(a.created_at))
     const open = data.steps.filter((s) => s.status !== 'done')
     // Requests go to whoever handles them: the managers, Satın alma, Tasarım.
-    const talepler = data.talepler.filter((t) => isOpen(t) && canHandleTalep(data, me, t))
-    const withTalep = new Set(data.talepler.filter(isOpen).map((t) => t.step_id))
+    const talepler = data.talepler.filter((tl) => isOpen(tl) && canHandleTalep(data, me, tl))
+    const withTalep = new Set(data.talepler.filter(isOpen).map((tl) => tl.step_id))
     return {
       talepler: talepler.sort((a, b) => a.created_at.localeCompare(b.created_at)),
       // A problem waiting on a request is shown with the request instead.
@@ -91,7 +92,7 @@ export function Projeler() {
     return (
       <div className="page">
         <div className="page-head">
-          <h1>Projeler</h1>
+          <h1>{t('Projeler')}</h1>
         </div>
         {error ? <ErrorNote>{error}</ErrorNote> : <Spinner />}
       </div>
@@ -118,11 +119,11 @@ export function Projeler() {
   return (
     <div className="page">
       <div className="page-head">
-        <h1>Projeler</h1>
+        <h1>{t('Projeler')}</h1>
         {manages ? (
           <button type="button" className="btn btn-primary press" onClick={() => setCreating(true)}>
             <Icon name="plus" size={18} />
-            Yeni proje
+            {t('Yeni proje')}
           </button>
         ) : null}
       </div>
@@ -131,24 +132,24 @@ export function Projeler() {
 
       {manages ? (
         <div className="tiles">
-          <Tile label="Aktif proje" value={view.active.length} />
-          <Tile label="Devam eden iş" value={view.nActiveSteps} tone="active" />
-          <Tile label="Onay bekleyen" value={view.reviews.length} tone="review" />
-          <Tile label="Geciken iş" value={view.nLate} tone="late" />
-          <Tile label="Açık sorun" value={view.problems.length} tone="problem" />
+          <Tile label={t('Aktif proje')} value={view.active.length} />
+          <Tile label={t('Devam eden iş')} value={view.nActiveSteps} tone="active" />
+          <Tile label={t('Onay bekleyen')} value={view.reviews.length} tone="review" />
+          <Tile label={t('Geciken iş')} value={view.nLate} tone="late" />
+          <Tile label={t('Açık sorun')} value={view.problems.length} tone="problem" />
         </div>
       ) : null}
 
       {view.talepler.length > 0 ? (
-        <section className="stack" aria-label="Açık talepler">
-          <h3>Açık talepler</h3>
-          <TalepList talepler={view.talepler} where label="Açık talepler" />
+        <section className="stack" aria-label={t('Açık talepler')}>
+          <h3>{t('Açık talepler')}</h3>
+          <TalepList talepler={view.talepler} where label={t('Açık talepler')} />
         </section>
       ) : null}
 
       {view.shownProblems.length > 0 ? (
-        <section className="stack" aria-label="Bildirilen sorunlar">
-          <h3>Atölyeden bildirilen sorunlar</h3>
+        <section className="stack" aria-label={t('Bildirilen sorunlar')}>
+          <h3>{t('Atölyeden bildirilen sorunlar')}</h3>
           <div className="card rows problems">
             {view.shownProblems.map((s) => {
               const project = data.project(s.project_id)
@@ -160,14 +161,14 @@ export function Projeler() {
                   </span>
                   <Link to={`/projeler/${s.project_id}`} className="problem-text">
                     <strong>
-                      {s.problem_reason}
+                      {s.problem_reason ? t(s.problem_reason) : null}
                       {s.problem_note ? `: ${s.problem_note}` : ''}
                     </strong>
                     <span className="sub">{[project?.code, project?.name, s.name, who].filter(Boolean).join(' · ')}</span>
                   </Link>
                   {manages ? (
                     <button type="button" className="btn btn-tint press" disabled={busyStep === s.id} onClick={() => void act(s, 'start')}>
-                      Çözüldü
+                      {t('Çözüldü')}
                     </button>
                   ) : null}
                 </div>
@@ -178,8 +179,8 @@ export function Projeler() {
       ) : null}
 
       {manages && view.reviews.length > 0 ? (
-        <section className="stack" aria-label="Onay bekleyen işler">
-          <h3>Onay bekleyen işler</h3>
+        <section className="stack" aria-label={t('Onay bekleyen işler')}>
+          <h3>{t('Onay bekleyen işler')}</h3>
           <div className="card rows problems">
             {view.reviews.map((s) => {
               const project = data.project(s.project_id)
@@ -192,16 +193,16 @@ export function Projeler() {
                   <Link to={`/projeler/${s.project_id}`} className="problem-text">
                     <strong>{s.name}</strong>
                     <span className="sub">
-                      {[project?.code, project?.name, who, s.submitted_at ? `Teslim: ${formatMoment(s.submitted_at)}` : null]
+                      {[project?.code, project?.name, who, s.submitted_at ? t('Teslim edildi: {time}', { time: formatMoment(s.submitted_at) }) : null]
                         .filter(Boolean)
                         .join(' · ')}
                     </span>
                   </Link>
                   <Link to={`/projeler/${s.project_id}`} className="btn btn-quiet press">
-                    İncele
+                    {t('İncele')}
                   </Link>
                   <button type="button" className="btn btn-go press" disabled={busyStep === s.id} onClick={() => void act(s, 'approve')}>
-                    Onayla
+                    {t('Onayla')}
                   </button>
                 </div>
               )
@@ -211,20 +212,20 @@ export function Projeler() {
       ) : null}
 
       <div className="view-bar">
-        <div className="segmented narrow" role="group" aria-label="Proje durumu">
+        <div className="segmented narrow" role="group" aria-label={t('Proje durumu')}>
           <button type="button" className="press" aria-pressed={!showFinished} onClick={() => setShowFinished(false)}>
-            Aktif ({view.active.length})
+            {t('Aktif ({n})', { n: view.active.length })}
           </button>
           <button type="button" className="press" aria-pressed={showFinished} onClick={() => setShowFinished(true)}>
-            Biten ({view.finished.length})
+            {t('Biten ({n})', { n: view.finished.length })}
           </button>
         </div>
-        <div className="segmented narrow" role="group" aria-label="Görünüm">
+        <div className="segmented narrow" role="group" aria-label={t('Görünüm')}>
           <button type="button" className="press" aria-pressed={layout === 'list'} onClick={() => pickLayout('list')}>
-            Liste
+            {t('Liste')}
           </button>
           <button type="button" className="press" aria-pressed={layout === 'timeline'} onClick={() => pickLayout('timeline')}>
-            Takvim
+            {t('Takvim')}
           </button>
         </div>
       </div>
@@ -232,10 +233,10 @@ export function Projeler() {
       {list.length === 0 ? (
         <div className="card empty">
           {showFinished
-            ? 'Henüz biten proje yok.'
+            ? t('Henüz biten proje yok.')
             : manages
-              ? 'Aktif proje yok. "Yeni proje" ile başlayın.'
-              : 'Şu anda aktif proje yok.'}
+              ? t('Aktif proje yok. "Yeni proje" ile başlayın.')
+              : t('Şu anda aktif proje yok.')}
         </div>
       ) : layout === 'timeline' ? (
         <Timeline projects={list} data={data} />
@@ -270,7 +271,7 @@ function ProjectCard({ project, data }: { project: Project; data: Workshop }) {
     <Link to={`/projeler/${project.id}`} className="card project-card press">
       <span className="project-meta">
         <span className="mono">{project.code ?? ''}</span>
-        <span className="sub">{project.due_date ? `Teslim: ${formatDay(project.due_date)}` : 'Teslim tarihi yok'}</span>
+        <span className="sub">{project.due_date ? t('Teslim: {date}', { date: formatDay(project.due_date) }) : t('Teslim tarihi yok')}</span>
       </span>
       <span className="project-name">{project.name}</span>
       {company ? <span className="sub">{company.name}</span> : null}
@@ -278,8 +279,8 @@ function ProjectCard({ project, data }: { project: Project; data: Workshop }) {
       <span className="project-meta">
         <span className="sub">{progressText(steps)}</span>
         <span className="flags">
-          {problems > 0 ? <span className="badge status-problem">{problems} sorun</span> : null}
-          {late ? <span className="badge status-late">Gecikme var</span> : null}
+          {problems > 0 ? <span className="badge status-problem">{t('{n} sorun', { n: problems })}</span> : null}
+          {late ? <span className="badge status-late">{t('Gecikme var')}</span> : null}
         </span>
       </span>
     </Link>
@@ -337,37 +338,37 @@ function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => vo
   }
 
   return (
-    <Dialog title="Yeni proje" onClose={onClose}>
+    <Dialog title={t('Yeni proje')} onClose={onClose}>
       <form onSubmit={submit} className="dialog-body">
-        <Field label="Proje adı">
+        <Field label={t('Proje adı')}>
           {(id) => (
             <input
               id={id}
               className="input"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Örnek: 500 m³/gün RO Ünitesi"
+              placeholder={t('Örnek: 500 m³/gün RO Ünitesi')}
               maxLength={120}
               autoComplete="off"
               required
             />
           )}
         </Field>
-        <Field label="Firma" hint="Siparişi veren firma.">
+        <Field label={t('Firma')} hint={t('Siparişi veren firma.')}>
           {(id) => (
             <select id={id} className="input" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
-              <option value="">Seçilmedi</option>
+              <option value="">{t('Seçilmedi')}</option>
               {data.companies.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
-              <option value={NEW_COMPANY}>+ Yeni firma ekle…</option>
+              <option value={NEW_COMPANY}>{t('+ Yeni firma ekle…')}</option>
             </select>
           )}
         </Field>
         {companyId === NEW_COMPANY ? (
-          <Field label="Yeni firma adı" hint="Firma listeye eklenir. İletişim bilgilerini sonra Firmalar sayfasından girebilirsiniz.">
+          <Field label={t('Yeni firma adı')} hint={t('Firma listeye eklenir. İletişim bilgilerini sonra Firmalar sayfasından girebilirsiniz.')}>
             {(id) => (
               <input
                 id={id}
@@ -382,31 +383,31 @@ function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => vo
           </Field>
         ) : null}
         <div className="pair">
-          <Field label="Proje kodu">
+          <Field label={t('Proje kodu')}>
             {(id) => (
               <input
                 id={id}
                 className="input"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                placeholder="İsteğe bağlı"
+                placeholder={t('İsteğe bağlı')}
                 maxLength={40}
                 autoComplete="off"
                 autoCapitalize="characters"
               />
             )}
           </Field>
-          <Field label="Teslim tarihi">
+          <Field label={t('Teslim tarihi')}>
             {(id) => <input id={id} className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} />}
           </Field>
         </div>
-        <Field label="Proje türü" hint="Türü seçince adımları otomatik eklenir. Sonra adım ekleyip kaldırabilirsiniz.">
+        <Field label={t('Proje türü')} hint={t('Türü seçince adımları otomatik eklenir. Sonra adım ekleyip kaldırabilirsiniz.')}>
           {(id) => (
             <select id={id} className="input" value={typeId} onChange={(e) => setTypeId(e.target.value)}>
-              <option value="">Boş proje (adımsız)</option>
-              {data.projectTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
+              <option value="">{t('Boş proje (adımsız)')}</option>
+              {data.projectTypes.map((ty) => (
+                <option key={ty.id} value={ty.id}>
+                  {ty.name}
                 </option>
               ))}
             </select>
@@ -414,10 +415,10 @@ function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => vo
         </Field>
         {typeId ? (
           <div>
-            <div className="field-label">Eklenecek adımlar</div>
+            <div className="field-label">{t('Eklenecek adımlar')}</div>
             {preview.length ? (
               <>
-                <div className="card rows approval-list" role="group" aria-label="Eklenecek adımlar">
+                <div className="card rows approval-list" role="group" aria-label={t('Eklenecek adımlar')}>
                   {preview.map((s, i) => (
                     <div key={s.id} className="approval-row">
                       <span className="mono no">{i + 1}</span>
@@ -425,16 +426,16 @@ function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => vo
                     </div>
                   ))}
                 </div>
-                <div className="hint">Adımları proje açıldıktan sonra ekleyip çıkarabilirsiniz.</div>
+                <div className="hint">{t('Adımları proje açıldıktan sonra ekleyip çıkarabilirsiniz.')}</div>
               </>
             ) : (
-              <div className="sub">Bu türde hazır adım yok.</div>
+              <div className="sub">{t('Bu türde hazır adım yok.')}</div>
             )}
           </div>
         ) : null}
         <ErrorNote>{error}</ErrorNote>
         <button type="submit" className="btn btn-primary btn-big press" disabled={busy}>
-          {busy ? 'Oluşturuluyor…' : 'Projeyi oluştur'}
+          {busy ? t('Oluşturuluyor…') : t('Projeyi oluştur')}
         </button>
       </form>
     </Dialog>

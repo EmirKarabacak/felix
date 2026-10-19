@@ -22,6 +22,22 @@
   --warn-tint: #fdebd7;
   --review-ink: #53259b;
   --review-tint: #efe6fb;
+  --ink-3: #8e8e93;
+  --on-ink: #ffffff;
+  --neutral-tint: #efeff2;
+  --neutral-ink: #48484c;
+  --glass: rgba(245, 245, 247, 0.76);
+  --focus: rgba(0, 102, 204, 0.5);
+  --track: #d1d1d6;
+  --knob: #ffffff;
+  --green: #248a3d;
+  --orange: #c25e00;
+  --red: #d12f26;
+  --purple: #7a4ac2;
+  --seg-empty: #d8d8dd;
+  --selected-ink: #0058b0;
+  --scrim: rgba(0, 0, 0, 0.4);
+  --contrast-surface: #ffffff;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
   --shadow-dialog: 0 24px 60px rgba(0, 0, 0, 0.3);
   --r-min: 10px;
@@ -31,6 +47,93 @@
   color: var(--ink);
   background: var(--bg);
   -webkit-text-size-adjust: 100%;
+  color-scheme: light;
+}
+
+/* Dark theme: chosen in Ayarlar, or following the phone when Ayarlar says
+   Sistem. Only the colours change; every rule in this file reads these tokens. */
+:root[data-theme='dark'] {
+  --bg: #000000;
+  --surface: #1c1c1e;
+  --ink: #f5f5f7;
+  --ink-2: #a1a1a6;
+  --ink-3: #8e8e93;
+  --hair: rgba(255, 255, 255, 0.1);
+  --hair-strong: rgba(255, 255, 255, 0.24);
+  --fill: rgba(255, 255, 255, 0.1);
+  --accent: #0a84ff;
+  --accent-ink: #6cb2ff;
+  --accent-tint: #0f2a47;
+  --danger: #ff453a;
+  --danger-ink: #ff7a72;
+  --danger-tint: #3b1714;
+  --ok-ink: #4ade80;
+  --ok-tint: #10301c;
+  --warn-ink: #ffb340;
+  --warn-tint: #3a2610;
+  --review-ink: #c9a2ff;
+  --review-tint: #2b1c45;
+  --on-ink: #000000;
+  --neutral-tint: #2c2c2e;
+  --neutral-ink: #d1d1d6;
+  --glass: rgba(22, 22, 24, 0.72);
+  --focus: rgba(10, 132, 255, 0.65);
+  --track: #39393d;
+  --knob: #ffffff;
+  --green: #30d158;
+  --orange: #ff9f0a;
+  --red: #ff453a;
+  --purple: #bf5af2;
+  --seg-empty: #3a3a3c;
+  --selected-ink: #6cb2ff;
+  --scrim: rgba(0, 0, 0, 0.62);
+  --contrast-surface: #000000;
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-dialog: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --ink: #f5f5f7;
+    --ink-2: #a1a1a6;
+    --ink-3: #8e8e93;
+    --hair: rgba(255, 255, 255, 0.1);
+    --hair-strong: rgba(255, 255, 255, 0.24);
+    --fill: rgba(255, 255, 255, 0.1);
+    --accent: #0a84ff;
+    --accent-ink: #6cb2ff;
+    --accent-tint: #0f2a47;
+    --danger: #ff453a;
+    --danger-ink: #ff7a72;
+    --danger-tint: #3b1714;
+    --ok-ink: #4ade80;
+    --ok-tint: #10301c;
+    --warn-ink: #ffb340;
+    --warn-tint: #3a2610;
+    --review-ink: #c9a2ff;
+    --review-tint: #2b1c45;
+    --on-ink: #000000;
+    --neutral-tint: #2c2c2e;
+    --neutral-ink: #d1d1d6;
+    --glass: rgba(22, 22, 24, 0.72);
+    --focus: rgba(10, 132, 255, 0.65);
+    --track: #39393d;
+    --knob: #ffffff;
+    --green: #30d158;
+    --orange: #ff9f0a;
+    --red: #ff453a;
+    --purple: #bf5af2;
+    --seg-empty: #3a3a3c;
+    --selected-ink: #6cb2ff;
+    --scrim: rgba(0, 0, 0, 0.62);
+    --contrast-surface: #000000;
+    --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --shadow-dialog: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    color-scheme: dark;
+  }
 }
 
 * {
@@ -94,7 +197,7 @@ button:disabled {
 }
 
 :focus-visible {
-  outline: 3px solid rgba(0, 102, 204, 0.5);
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -121,7 +224,7 @@ button:disabled {
 }
 
 .glass {
-  background: rgba(245, 245, 247, 0.76);
+  background: var(--glass);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   backdrop-filter: blur(20px) saturate(180%);
 }
@@ -159,7 +262,7 @@ button:disabled {
 
 .btn-dark {
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
 }
 
 .btn-danger {
@@ -218,7 +321,7 @@ button:disabled {
 
 select.input {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23515154' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.875rem center;
   padding-right: 2.5rem;
@@ -249,7 +352,7 @@ select.input {
   height: 31px;
   margin: 0;
   border-radius: 999px;
-  background: #d1d1d6;
+  background: var(--track);
   position: relative;
   cursor: pointer;
   transition: background 200ms ease;
@@ -263,13 +366,13 @@ select.input {
   width: 27px;
   height: 27px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--knob);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   transition: transform 200ms cubic-bezier(0.2, 0.9, 0.25, 1);
 }
 
 .switch:checked {
-  background: #248a3d;
+  background: var(--green);
 }
 
 .switch:checked::after {
@@ -330,7 +433,7 @@ select.input {
 
 .badge-ceo {
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
 }
 
 .badge-manager {
@@ -339,8 +442,8 @@ select.input {
 }
 
 .badge-worker {
-  background: #efeff2;
-  color: #48484c;
+  background: var(--neutral-tint);
+  color: var(--neutral-ink);
 }
 
 /* Surfaces */
@@ -556,7 +659,7 @@ select.input {
 }
 
 .link-row .go {
-  color: #8e8e93;
+  color: var(--ink-3);
   display: flex;
 }
 
@@ -591,8 +694,9 @@ h3 .count {
   background: transparent;
   text-align: left;
   display: grid;
-  /* fixed badge column so the meslek column lines up across rows */
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 5.25rem 28px;
+  /* fixed badge column so the meslek column lines up across rows; wide enough
+     for the longest role ("Bölüm Sorumlusu", "General Manager") */
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 8.75rem 28px;
   align-items: center;
   gap: 0.75rem;
 }
@@ -618,10 +722,13 @@ h3 .count {
 
 .person .badge {
   justify-self: start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .person .go {
-  color: #8e8e93;
+  color: var(--ink-3);
   display: flex;
 }
 
@@ -682,14 +789,14 @@ h3 .count {
 .status-problem { background: var(--warn-tint); color: var(--warn-ink); }
 .status-late { background: var(--danger-tint); color: var(--danger-ink); }
 .status-review { background: var(--review-tint); color: var(--review-ink); }
-.status-waiting { background: #efeff2; color: #48484c; }
+.status-waiting { background: var(--neutral-tint); color: var(--neutral-ink); }
 
-.seg-done { background: #248a3d; }
+.seg-done { background: var(--green); }
 .seg-active { background: var(--accent); }
-.seg-problem { background: #c25e00; }
-.seg-late { background: #d12f26; }
-.seg-review { background: #7a4ac2; }
-.seg-waiting { background: #d8d8dd; }
+.seg-problem { background: var(--orange); }
+.seg-late { background: var(--red); }
+.seg-review { background: var(--purple); }
+.seg-waiting { background: var(--seg-empty); }
 
 .strip {
   display: flex;
@@ -758,7 +865,7 @@ h3 .count {
 .chip {
   padding: 0.1875rem 0.625rem;
   border-radius: 999px;
-  background: #efeff2;
+  background: var(--neutral-tint);
   font-size: 0.8125rem;
   font-weight: 500;
   white-space: nowrap;
@@ -1053,12 +1160,12 @@ h3 .count {
   opacity: 0.55;
 }
 
-.tl-done { background: var(--ok-tint); box-shadow: inset 0 0 0 1.5px #248a3d; }
-.tl-done .tl-fill { background: #248a3d; }
-.tl-problem { background: var(--warn-tint); box-shadow: inset 0 0 0 1.5px #c25e00; }
-.tl-problem .tl-fill { background: #c25e00; }
-.tl-late { background: var(--danger-tint); box-shadow: inset 0 0 0 1.5px #d12f26; }
-.tl-late .tl-fill { background: #d12f26; }
+.tl-done { background: var(--ok-tint); box-shadow: inset 0 0 0 1.5px var(--green); }
+.tl-done .tl-fill { background: var(--green); }
+.tl-problem { background: var(--warn-tint); box-shadow: inset 0 0 0 1.5px var(--orange); }
+.tl-problem .tl-fill { background: var(--orange); }
+.tl-late { background: var(--danger-tint); box-shadow: inset 0 0 0 1.5px var(--red); }
+.tl-late .tl-fill { background: var(--red); }
 
 /* No delivery date: the right end fades out instead of stopping at a day. */
 .tl-open {
@@ -1094,7 +1201,7 @@ h3 .count {
   padding: 0 6px;
   border-radius: 999px;
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
   font-size: 0.6875rem;
   font-weight: 600;
   line-height: 1.6;
@@ -1135,7 +1242,7 @@ h3 .count {
 }
 
 .company .go {
-  color: #8e8e93;
+  color: var(--ink-3);
   display: flex;
 }
 
@@ -1230,7 +1337,7 @@ h3 .count {
 }
 
 .step .go {
-  color: #8e8e93;
+  color: var(--ink-3);
   display: flex;
 }
 
@@ -1381,7 +1488,7 @@ h3 .count {
 }
 
 .type-row[aria-pressed='true'] {
-  color: #0058b0;
+  color: var(--selected-ink);
   font-weight: 700;
 }
 
@@ -1461,7 +1568,7 @@ h3 .count {
   top: var(--vvtop, 0px);
   height: var(--vvh, 100dvh);
   z-index: 20;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1880,7 +1987,7 @@ h3 .count {
   }
 
   .person {
-    grid-template-columns: minmax(0, 1fr) 5.25rem 24px;
+    grid-template-columns: minmax(0, 1fr) auto 24px;
     grid-template-areas: 'name badge go' 'meslek badge go';
     row-gap: 0;
   }
@@ -2006,7 +2113,7 @@ h3 .count {
 
 @media (prefers-contrast: more) {
   .glass {
-    background: #fff;
+    background: var(--contrast-surface);
     outline: 1px solid var(--ink);
   }
 

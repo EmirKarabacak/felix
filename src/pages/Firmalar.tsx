@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { BackToSettings } from '../components/Shell'
 import { Link } from 'react-router-dom'
 import { Dialog, ErrorNote, Field, Icon, Spinner } from '../components/ui'
+import { locale, t } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 import { useWorkshop, type Company, type Workshop } from '../lib/workshop'
 
@@ -13,11 +14,11 @@ export function Firmalar() {
 
   const shown = useMemo(() => {
     if (!data) return []
-    const q = query.trim().toLocaleLowerCase('tr')
+    const q = query.trim().toLocaleLowerCase(locale())
     if (!q) return data.companies
     return data.companies.filter((c) => {
       const d = data.detailsOf(c.id)
-      return [c.name, d?.contact_name, d?.email, d?.phone].some((v) => v?.toLocaleLowerCase('tr').includes(q))
+      return [c.name, d?.contact_name, d?.email, d?.phone].some((v) => v?.toLocaleLowerCase(locale()).includes(q))
     })
   }, [data, query])
 
@@ -26,7 +27,7 @@ export function Firmalar() {
       <div className="page">
         <BackToSettings />
         <div className="page-head">
-          <h1>Firmalar</h1>
+          <h1>{t('Firmalar')}</h1>
         </div>
         {error ? <ErrorNote>{error}</ErrorNote> : <Spinner />}
       </div>
@@ -38,12 +39,12 @@ export function Firmalar() {
       <BackToSettings />
       <div className="page-head">
         <div>
-          <h1>Firmalar</h1>
-          <div className="sub">Sipariş veren firmalar. İletişim bilgilerini yalnızca Genel Müdür, IT ve Bölüm Sorumluları görür.</div>
+          <h1>{t('Firmalar')}</h1>
+          <div className="sub">{t('Sipariş veren firmalar. İletişim bilgilerini yalnızca Genel Müdür, IT ve Bölüm Sorumluları görür.')}</div>
         </div>
         <button type="button" className="btn btn-primary press" onClick={() => setEditing('new')}>
           <Icon name="plus" size={18} />
-          Yeni firma
+          {t('Yeni firma')}
         </button>
       </div>
 
@@ -55,17 +56,17 @@ export function Firmalar() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Firma veya kişi ara"
-          aria-label="Firma veya kişi ara"
+          placeholder={t('Firma veya kişi ara')}
+          aria-label={t('Firma veya kişi ara')}
         />
       ) : null}
 
       {data.companies.length === 0 ? (
-        <div className="card empty">Henüz firma yok. "Yeni firma" ile ilk firmayı ekleyin.</div>
+        <div className="card empty">{t('Henüz firma yok. "Yeni firma" ile ilk firmayı ekleyin.')}</div>
       ) : shown.length === 0 ? (
-        <div className="card empty">Aramanıza uyan firma yok.</div>
+        <div className="card empty">{t('Aramanıza uyan firma yok.')}</div>
       ) : (
-        <section className="card companies rows" aria-label="Firmalar">
+        <section className="card companies rows" aria-label={t('Firmalar')}>
           {shown.map((c) => {
             const d = data.detailsOf(c.id)
             const count = data.projectsOf(c.id).length
@@ -73,9 +74,9 @@ export function Firmalar() {
               <button key={c.id} type="button" className="company press" onClick={() => setEditing(c)}>
                 <span className="company-name">{c.name}</span>
                 <span className="company-contact sub">
-                  {[d?.contact_name, d?.phone, d?.email].filter(Boolean).join(' · ') || 'İletişim bilgisi yok'}
+                  {[d?.contact_name, d?.phone, d?.email].filter(Boolean).join(' · ') || t('İletişim bilgisi yok')}
                 </span>
-                <span className="company-count sub">{count ? `${count} proje` : ''}</span>
+                <span className="company-count sub">{count ? t('{n} proje', { n: count }) : ''}</span>
                 <span className="go">
                   <Icon name="chevron" size={18} />
                 </span>
@@ -133,9 +134,9 @@ function CompanyDialog({ company, data, onClose }: { company: Company | null; da
   }
 
   return (
-    <Dialog title={company ? company.name : 'Yeni firma'} onClose={onClose} focusFirst={!company}>
+    <Dialog title={company ? company.name : t('Yeni firma')} onClose={onClose} focusFirst={!company}>
       <form onSubmit={save} className="dialog-body">
-        <Field label="Firma adı">
+        <Field label={t('Firma adı')}>
           {(id) => (
             <input
               id={id}
@@ -148,7 +149,7 @@ function CompanyDialog({ company, data, onClose }: { company: Company | null; da
             />
           )}
         </Field>
-        <Field label="Yetkili kişi" hint="Bu firmada görüştüğünüz kişi.">
+        <Field label={t('Yetkili kişi')} hint={t('Bu firmada görüştüğünüz kişi.')}>
           {(id) => (
             <input
               id={id}
@@ -161,7 +162,7 @@ function CompanyDialog({ company, data, onClose }: { company: Company | null; da
           )}
         </Field>
         <div className="pair">
-          <Field label="Telefon">
+          <Field label={t('Telefon')}>
             {(id) => (
               <input
                 id={id}
@@ -174,7 +175,7 @@ function CompanyDialog({ company, data, onClose }: { company: Company | null; da
               />
             )}
           </Field>
-          <Field label="E-posta">
+          <Field label={t('E-posta')}>
             {(id) => (
               <input
                 id={id}
@@ -189,7 +190,7 @@ function CompanyDialog({ company, data, onClose }: { company: Company | null; da
             )}
           </Field>
         </div>
-        <Field label="Adres">
+        <Field label={t('Adres')}>
           {(id) => (
             <textarea
               id={id}
@@ -201,7 +202,7 @@ function CompanyDialog({ company, data, onClose }: { company: Company | null; da
             />
           )}
         </Field>
-        <Field label="Not">
+        <Field label={t('Not')}>
           {(id) => (
             <textarea
               id={id}
@@ -215,13 +216,13 @@ function CompanyDialog({ company, data, onClose }: { company: Company | null; da
         </Field>
         <ErrorNote>{error}</ErrorNote>
         <button type="submit" className="btn btn-primary btn-big press" disabled={busy}>
-          {busy ? 'Kaydediliyor…' : company ? 'Kaydet' : 'Firmayı ekle'}
+          {busy ? t('Kaydediliyor…') : company ? t('Kaydet') : t('Firmayı ekle')}
         </button>
       </form>
 
       {projects.length ? (
         <div>
-          <div className="field-label">Bu firmanın projeleri</div>
+          <div className="field-label">{t('Bu firmanın projeleri')}</div>
           <div className="chips">
             {projects.map((p) => (
               <Link key={p.id} to={`/projeler/${p.id}`} className="chip chip-link">
@@ -237,8 +238,8 @@ function CompanyDialog({ company, data, onClose }: { company: Company | null; da
           <div className="dialog-foot">
             <div className="note note-error">
               {projects.length
-                ? `"${company.name}" silinecek. ${projects.length} projesi yerinde kalır ama firmasız görünür.`
-                : `"${company.name}" silinecek.`}
+                ? t('"{name}" silinecek. {n} projesi yerinde kalır ama firmasız görünür.', { name: company.name, n: projects.length })
+                : t('"{name}" silinecek.', { name: company.name })}
             </div>
             <button
               type="button"
@@ -246,15 +247,15 @@ function CompanyDialog({ company, data, onClose }: { company: Company | null; da
               disabled={busy}
               onClick={() => void run(() => supabase.from('companies').delete().eq('id', company.id))}
             >
-              Evet, firmayı sil
+              {t('Evet, firmayı sil')}
             </button>
             <button type="button" className="btn btn-quiet btn-big press" onClick={() => setConfirmDelete(false)}>
-              Vazgeç
+              {t('Vazgeç')}
             </button>
           </div>
         ) : (
           <button type="button" className="btn btn-danger btn-big press" onClick={() => setConfirmDelete(true)}>
-            Firmayı sil
+            {t('Firmayı sil')}
           </button>
         )
       ) : null}

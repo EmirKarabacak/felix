@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { supabase } from './supabase'
 
 /** Calls one of Felix's own server endpoints as the signed-in person. */
@@ -24,7 +25,7 @@ export async function callApi(
   }
   if (!response.ok) {
     throw new Error(
-      typeof payload.error === 'string' ? payload.error : `Sunucu hatası (${response.status}).`,
+      typeof payload.error === 'string' ? payload.error : t('Sunucu hatası ({status}).', { status: response.status }),
     )
   }
   return payload

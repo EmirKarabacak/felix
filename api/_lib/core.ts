@@ -203,7 +203,7 @@ export async function handleUsers(call: Call, db: SupabaseClient = adminClient()
   }
 
   if (call.method === 'DELETE') {
-    if (id === caller) return fail(400, 'Kendi hesabınızı silemezsiniz.')
+    if (id === caller) return fail(400, 'Kendi hesabınızı çıkaramazsınız.')
     // The person is deactivated rather than erased, so their name stays on
     // past work. Their username is released for reuse and they can no longer sign in.
     const freed = `silindi-${id.replace(/-/g, '').slice(0, 20)}`

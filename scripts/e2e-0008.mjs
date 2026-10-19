@@ -298,7 +298,7 @@ const murat = await open('murat', PHONE, 'murat', 'murat123')
 await murat.locator('button.job', { hasText: 'Elektrik ve pano' }).click()
 await dialog(murat).getByRole('button', { name: 'İşe başla' }).click()
 await dialog(murat).getByRole('button', { name: 'İşi bitir', exact: true }).click()
-await dialog(murat).getByText('Yönetici onayı bekleniyor.').waitFor()
+await dialog(murat).getByText('Onay bekleniyor.').waitFor()
 ok("an Elektrikçi Çırak's finish waits, as their level was carried over")
 await closeDialog(murat)
 

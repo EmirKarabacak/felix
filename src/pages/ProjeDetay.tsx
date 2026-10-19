@@ -4,6 +4,7 @@ import { FileSection } from '../components/Dosyalar'
 import { StatusBadge, StepDialog } from '../components/StepDialog'
 import { Dialog, ErrorNote, Field, Icon, Spinner } from '../components/ui'
 import { useProfile } from '../lib/auth'
+import { t } from '../lib/i18n'
 import { canManage, supabase } from '../lib/supabase'
 import { canManageFiles, formatDay, isOpen, useWorkshop, type Project, type Workshop } from '../lib/workshop'
 import { ProgressStrip, progressText } from './Projeler'
@@ -20,7 +21,7 @@ export function ProjeDetay() {
   const back = (
     <Link to="/projeler" className="back press">
       <Icon name="back" size={20} />
-      Projeler
+      {t('Projeler')}
     </Link>
   )
 
@@ -38,7 +39,7 @@ export function ProjeDetay() {
     return (
       <div className="page">
         {back}
-        <div className="card empty">Bu proje bulunamadı. Silinmiş olabilir.</div>
+        <div className="card empty">{t('Bu proje bulunamadı. Silinmiş olabilir.')}</div>
       </div>
     )
   }
@@ -57,7 +58,7 @@ export function ProjeDetay() {
       <div className="page-head">
         <div>
           <div className="mono">
-            {[project.code, project.due_date ? `Teslim ${formatDay(project.due_date)}` : 'Teslim tarihi yok']
+            {[project.code, project.due_date ? t('Teslim {date}', { date: formatDay(project.due_date) }) : t('Teslim tarihi yok')]
               .filter(Boolean)
               .join(' · ')}
           </div>
@@ -67,11 +68,11 @@ export function ProjeDetay() {
         {manages ? (
           <div className="head-actions">
             <button type="button" className="btn btn-quiet press" onClick={() => setEditing(true)}>
-              Düzenle
+              {t('Düzenle')}
             </button>
             <button type="button" className="btn btn-primary press" onClick={() => setAdding(true)}>
               <Icon name="plus" size={18} />
-              Adım ekle
+              {t('Adım ekle')}
             </button>
           </div>
         ) : null}
@@ -85,16 +86,16 @@ export function ProjeDetay() {
       </div>
 
       {manages && company && contact && hasContact ? (
-        <section className="card rows facts customer" aria-label="Müşteri">
+        <section className="card rows facts customer" aria-label={t('Firma')}>
           {contact.contact_name ? (
             <div className="fact">
-              <span>Yetkili kişi</span>
+              <span>{t('Yetkili kişi')}</span>
               <span className="value">{contact.contact_name}</span>
             </div>
           ) : null}
           {contact.phone ? (
             <div className="fact">
-              <span>Telefon</span>
+              <span>{t('Telefon')}</span>
               <a className="value" href={`tel:${contact.phone.replace(/[^+\d]/g, '')}`}>
                 {contact.phone}
               </a>
@@ -102,7 +103,7 @@ export function ProjeDetay() {
           ) : null}
           {contact.email ? (
             <div className="fact">
-              <span>E-posta</span>
+              <span>{t('E-posta')}</span>
               <a className="value" href={`mailto:${contact.email}`}>
                 {contact.email}
               </a>
@@ -110,13 +111,13 @@ export function ProjeDetay() {
           ) : null}
           {contact.address ? (
             <div className="fact">
-              <span>Adres</span>
+              <span>{t('Adres')}</span>
               <span className="value">{contact.address}</span>
             </div>
           ) : null}
           {contact.notes ? (
             <div className="fact">
-              <span>Not</span>
+              <span>{t('Not')}</span>
               <span className="value">{contact.notes}</span>
             </div>
           ) : null}
@@ -125,10 +126,10 @@ export function ProjeDetay() {
 
       {steps.length === 0 ? (
         <div className="card empty">
-          {manages ? 'Bu projede henüz adım yok. "Adım ekle" ile başlayın.' : 'Bu projede henüz adım yok.'}
+          {manages ? t('Bu projede henüz adım yok. "Adım ekle" ile başlayın.') : t('Bu projede henüz adım yok.')}
         </div>
       ) : (
-        <section className="card steps rows" aria-label="Adımlar">
+        <section className="card steps rows" aria-label={t('Adımlar')}>
           {steps.map((s, i) => {
             const who = data.assigneesOf(s.id)
             const openTalep = data.taleplerOfStep(s.id).find(isOpen)
@@ -144,14 +145,14 @@ export function ProjeDetay() {
                       </span>
                     ))
                   ) : (
-                    <span className="sub">Atanmadı</span>
+                    <span className="sub">{t('Atanmadı')}</span>
                   )}
                 </span>
                 <span className="step-due sub">{formatDay(s.due_date)}</span>
                 <span className="step-status">
                   {openTalep ? (
                     <span className="badge status-problem talep-mark">
-                      {openTalep.kind === 'malzeme' ? 'Malzeme talebi' : 'Çizim talebi'}
+                      {openTalep.kind === 'malzeme' ? t('Malzeme talebi') : t('Çizim talebi')}
                     </span>
                   ) : null}
                   <StatusBadge step={s} />
@@ -168,23 +169,23 @@ export function ProjeDetay() {
       {data.ready ? (
         <div className="project-files">
           <FileSection
-            title="Ana doküman"
+            title={t('Ana doküman')}
             heading
             projectId={project.id}
             ana
             files={anaFiles}
             canAdd={fileManager}
-            addLabel={anaFiles.some((f) => !f.eski_at) ? 'Yenisini yükle' : 'Yükle'}
-            empty="Henüz ana doküman yok."
+            addLabel={anaFiles.some((f) => !f.eski_at) ? t('Yenisini yükle') : t('Yükle')}
+            empty={t('Henüz ana doküman yok.')}
           />
           <FileSection
-            title="Proje dosyaları"
+            title={t('Proje dosyaları')}
             heading
             projectId={project.id}
             files={files.filter((f) => !f.ana)}
             canAdd={fileManager}
-            addLabel="Dosya ekle"
-            empty="Sertifika gibi başka dosyalar burada durur."
+            addLabel={t('Dosya ekle')}
+            empty={t('Sertifika gibi başka dosyalar burada durur.')}
           />
         </div>
       ) : null}
@@ -229,19 +230,19 @@ function AddStepDialog({ project, data, onClose }: { project: Project; data: Wor
   }
 
   return (
-    <Dialog title="Adım ekle" subtitle={project.name} onClose={onClose} focusFirst={false}>
+    <Dialog title={t('Adım ekle')} subtitle={project.name} onClose={onClose} focusFirst={false}>
       <div>
-        <div className="field-label">Adım türleri</div>
+        <div className="field-label">{t('Adım türleri')}</div>
         <div className="card rows name-list">
-          {data.stepTypes.length === 0 ? <div className="empty">Henüz adım türü yok.</div> : null}
-          {data.stepTypes.map((t) => {
-            const count = inProject.filter((s) => s.name === t.name).length
+          {data.stepTypes.length === 0 ? <div className="empty">{t('Henüz adım türü yok.')}</div> : null}
+          {data.stepTypes.map((st) => {
+            const count = inProject.filter((s) => s.name === st.name).length
             return (
-              <div key={t.id} className="name-row">
-                <span className="label-text">{t.name}</span>
-                <span className="count">{count ? `Projede ${count} adet` : ''}</span>
-                <button type="button" className="btn btn-tint press" disabled={busy} onClick={() => void add(t.id)}>
-                  Ekle
+              <div key={st.id} className="name-row">
+                <span className="label-text">{st.name}</span>
+                <span className="count">{count ? t('Projede {n} adet', { n: count }) : ''}</span>
+                <button type="button" className="btn btn-tint press" disabled={busy} onClick={() => void add(st.id)}>
+                  {t('Ekle')}
                 </button>
               </div>
             )
@@ -250,18 +251,18 @@ function AddStepDialog({ project, data, onClose }: { project: Project; data: Wor
       </div>
       <ErrorNote>{error}</ErrorNote>
       <form onSubmit={create} className="field">
-        <label htmlFor="yeni-adim-turu">Listede yoksa yeni adım türü oluştur</label>
+        <label htmlFor="yeni-adim-turu">{t('Listede yoksa yeni adım türü oluştur')}</label>
         <div className="inline-form">
           <input
             id="yeni-adim-turu"
             className="input"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="Örnek: Membran yükleme"
+            placeholder={t('Örnek: Membran yükleme')}
             maxLength={80}
           />
           <button type="submit" className="btn btn-dark press" disabled={busy || !newName.trim()}>
-            Oluştur ve ekle
+            {t('Oluştur ve ekle')}
           </button>
         </div>
       </form>
@@ -304,17 +305,17 @@ function EditProjectDialog({ project, data, onClose }: { project: Project; data:
   }
 
   return (
-    <Dialog title="Projeyi düzenle" onClose={onClose}>
+    <Dialog title={t('Projeyi düzenle')} onClose={onClose}>
       <form onSubmit={save} className="dialog-body">
-        <Field label="Proje adı">
+        <Field label={t('Proje adı')}>
           {(id) => (
             <input id={id} className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} required />
           )}
         </Field>
-        <Field label="Firma">
+        <Field label={t('Firma')}>
           {(id) => (
             <select id={id} className="input" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
-              <option value="">Seçilmedi</option>
+              <option value="">{t('Seçilmedi')}</option>
               {data.companies.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -324,24 +325,24 @@ function EditProjectDialog({ project, data, onClose }: { project: Project; data:
           )}
         </Field>
         <div className="pair">
-          <Field label="Proje kodu">
+          <Field label={t('Proje kodu')}>
             {(id) => (
               <input id={id} className="input" value={code} onChange={(e) => setCode(e.target.value)} maxLength={40} />
             )}
           </Field>
-          <Field label="Teslim tarihi">
+          <Field label={t('Teslim tarihi')}>
             {(id) => <input id={id} className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} />}
           </Field>
         </div>
         <ErrorNote>{error}</ErrorNote>
         <button type="submit" className="btn btn-primary btn-big press" disabled={busy}>
-          {busy ? 'Kaydediliyor…' : 'Kaydet'}
+          {busy ? t('Kaydediliyor…') : t('Kaydet')}
         </button>
       </form>
       {confirmDelete ? (
         <div className="dialog-foot">
           <div className="note note-error">
-            Proje, bütün adımları ve geçmişiyle birlikte silinecek. Geri alınamaz.
+            {t('Proje, bütün adımları ve geçmişiyle birlikte silinecek. Geri alınamaz.')}
           </div>
           <button
             type="button"
@@ -354,15 +355,15 @@ function EditProjectDialog({ project, data, onClose }: { project: Project; data:
               )
             }
           >
-            Evet, projeyi sil
+            {t('Evet, projeyi sil')}
           </button>
           <button type="button" className="btn btn-quiet btn-big press" onClick={() => setConfirmDelete(false)}>
-            Vazgeç
+            {t('Vazgeç')}
           </button>
         </div>
       ) : (
         <button type="button" className="btn btn-danger btn-big press" onClick={() => setConfirmDelete(true)}>
-          Projeyi sil
+          {t('Projeyi sil')}
         </button>
       )}
     </Dialog>

@@ -1,4 +1,5 @@
 import { Component, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { t } from '../lib/i18n'
 
 // Felix's icons are drawn here, in one family: a 24-unit grid, rounded line
 // ends, one line weight, and corners rounded to match. Icons that mark a place
@@ -218,9 +219,9 @@ export function Icon({ name, size = 22, filled = false }: { name: IconName; size
   )
 }
 
-export function Spinner({ label = 'Yükleniyor' }: { label?: string }) {
+export function Spinner({ label }: { label?: string }) {
   return (
-    <div className="spinner" role="status" aria-label={label}>
+    <div className="spinner" role="status" aria-label={label ?? t('Yükleniyor')}>
       <span />
     </div>
   )
@@ -384,7 +385,7 @@ export function Dialog({
             {subtitle ? <div className="sub">{subtitle}</div> : null}
           </div>
           <button type="button" className="btn btn-quiet press" onClick={onClose}>
-            Kapat
+            {t('Kapat')}
           </button>
         </div>
         <div className="dialog-body">{children}</div>
@@ -412,10 +413,10 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { failed: 
       <div className="gate">
         <div className="gate-inner">
           <div className="note note-error" role="alert">
-            Bu ekran açılırken bir hata oluştu. Verileriniz güvende; sayfayı yenileyip tekrar deneyin.
+            {t('Bu ekran açılırken bir hata oluştu. Verileriniz güvende; sayfayı yenileyip tekrar deneyin.')}
           </div>
           <button type="button" className="btn btn-primary btn-big press" onClick={() => window.location.assign('/')}>
-            Yenile
+            {t('Yenile')}
           </button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { baseUrl } from '../../shared/username'
+import { t } from './i18n'
 
 const url = baseUrl(import.meta.env.VITE_SUPABASE_URL)
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim()
@@ -79,18 +80,21 @@ export type Seviye = 'usta' | 'kalfa' | 'cirak'
 
 export const SEVIYELER: Seviye[] = ['usta', 'kalfa', 'cirak']
 
+/** Turkish; shown through t() or seviyeLabel(). */
 export const SEVIYE_LABEL: Record<Seviye, string> = {
   usta: 'Usta',
   kalfa: 'Kalfa',
-  cirak: 'Çırak',
+  cirak: 'Çırak', // i18n-ok
 }
+
+export const seviyeLabel = (s: Seviye) => t(SEVIYE_LABEL[s])
 
 /** A newly ticked uzmanlık starts at Kalfa, as in the database. */
 export const DEFAULT_SEVIYE: Seviye = 'kalfa'
 
-/** Shown wherever levels and step types' uzmanlık are set. Emir's wording. */
+/** Shown (through t()) wherever levels and step types' uzmanlık are set. Emir's wording. */
 export const ONAY_KURALI =
-  'Onay kuralı: Bir adımı bitiren kişinin, o adımın uzmanlığındaki seviyesi geçerlidir. Kaynakta Usta olan biri kaynak adımını bitirince iş hemen biter. Aynı kişi elektrik adımını bitirirse ve elektrikte Çırak ise ya da hiç Elektrikçi uzmanlığı yoksa, iş yönetici onayını bekler.'
+  'Onay kuralı: Bir adımı bitiren kişinin, o adımın uzmanlığındaki seviyesi geçerlidir. Kaynakta Usta olan biri kaynak adımını bitirince iş hemen biter. Aynı kişi elektrik adımını bitirirse ve elektrikte Çırak ise ya da hiç Elektrikçi uzmanlığı yoksa, iş onay bekler.' // i18n-ok
 
 const PROFILE_COLUMNS = 'id, full_name, username, panel, active'
 
@@ -140,12 +144,15 @@ export async function fetchProfiles(only: { id?: string; active?: boolean } = {}
  */
 export type Rol = 'genel_mudur' | 'it' | 'manager' | 'worker'
 
+/** Turkish; shown through rolName() or rolLabel(). */
 export const ROL_LABEL: Record<Rol, string> = {
-  genel_mudur: 'Genel Müdür',
+  genel_mudur: 'Genel Müdür', // i18n-ok
   it: 'IT',
-  manager: 'Bölüm Sorumlusu',
+  manager: 'Bölüm Sorumlusu', // i18n-ok
   worker: 'Personel',
 }
+
+export const rolName = (rol: Rol) => t(ROL_LABEL[rol])
 
 export const rolOf = (p: Pick<Profile, 'panel' | 'unvan'>): Rol =>
   p.panel === 'ceo' ? (p.unvan === 'it' ? 'it' : 'genel_mudur') : p.panel
@@ -153,7 +160,7 @@ export const rolOf = (p: Pick<Profile, 'panel' | 'unvan'>): Rol =>
 export const panelOf = (rol: Rol): { panel: Panel; unvan: Unvan | null } =>
   rol === 'genel_mudur' || rol === 'it' ? { panel: 'ceo', unvan: rol } : { panel: rol, unvan: null }
 
-export const rolLabel = (p: Pick<Profile, 'panel' | 'unvan'>) => ROL_LABEL[rolOf(p)]
+export const rolLabel = (p: Pick<Profile, 'panel' | 'unvan'>) => rolName(rolOf(p))
 
 /** Genel Müdür, IT and Bölüm Sorumluları run the workshop; Personel see it read-only. */
 export const canManage = (panel: Panel) => panel === 'ceo' || panel === 'manager'

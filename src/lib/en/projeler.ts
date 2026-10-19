@@ -1,0 +1,105 @@
+import type { Dictionary } from '../en'
+
+export const projeler: Dictionary = {
+  // Projeler: top and summary numbers
+  Projeler: 'Projects',
+  'Yeni proje': 'New project',
+  'Aktif proje': 'Active projects',
+  'Devam eden iş': 'Jobs in progress',
+  'Onay bekleyen': 'Awaiting approval',
+  'Geciken iş': 'Overdue jobs',
+  'Açık sorun': 'Open problems',
+
+  // Boxes
+  'Açık talepler': 'Open requests',
+  'Bildirilen sorunlar': 'Reported problems',
+  'Atölyeden bildirilen sorunlar': 'Problems reported from the workshop',
+  Çözüldü: 'Resolved',
+  'Onay bekleyen işler': 'Jobs awaiting approval',
+  'Teslim edildi: {time}': 'Handed in: {time}',
+  İncele: 'Review',
+  Onayla: 'Approve',
+
+  // List and Takvim
+  'Proje durumu': 'Project status',
+  'Aktif ({n})': 'Active ({n})',
+  'Biten ({n})': 'Finished ({n})',
+  Görünüm: 'View',
+  Liste: 'List',
+  Takvim: 'Calendar',
+  'Henüz biten proje yok.': 'No finished projects yet.',
+  'Aktif proje yok. "Yeni proje" ile başlayın.': 'No active projects. Start with "New project".',
+  'Şu anda aktif proje yok.': 'No active projects right now.',
+  'Teslim: {date}': 'Due: {date}',
+  'Teslim tarihi yok': 'No due date',
+  '{n} sorun': { one: '{n} problem', other: '{n} problems' },
+  'Gecikme var': 'Running late',
+  'Henüz adım yok': 'No steps yet',
+  '{done} / {total} adım bitti': '{done} / {total} steps done',
+
+  // New project form
+  'Proje adı': 'Project name',
+  'Örnek: 500 m³/gün RO Ünitesi': 'Example: 500 m³/day RO Unit',
+  Firma: 'Company',
+  'Siparişi veren firma.': 'The company that placed the order.',
+  Seçilmedi: 'Not chosen',
+  '+ Yeni firma ekle…': '+ Add new company…',
+  'Yeni firma adı': 'New company name',
+  'Firma listeye eklenir. İletişim bilgilerini sonra Firmalar sayfasından girebilirsiniz.':
+    'The company is added to the list. You can enter contact details later on the Companies page.',
+  'Proje kodu': 'Project code',
+  'İsteğe bağlı': 'Optional',
+  'Teslim tarihi': 'Due date',
+  'Proje türü': 'Project type',
+  'Türü seçince adımları otomatik eklenir. Sonra adım ekleyip kaldırabilirsiniz.':
+    'Choosing a type adds its steps automatically. You can add or remove steps later.',
+  'Boş proje (adımsız)': 'Empty project (no steps)',
+  'Eklenecek adımlar': 'Steps to add',
+  'Adımları proje açıldıktan sonra ekleyip çıkarabilirsiniz.': 'You can add or remove steps after the project is opened.',
+  'Bu türde hazır adım yok.': 'This type has no ready-made steps.',
+  'Oluşturuluyor…': 'Creating…',
+  'Projeyi oluştur': 'Create project',
+
+  // A project's own page
+  'Bu proje bulunamadı. Silinmiş olabilir.': 'This project was not found. It may have been deleted.',
+  'Teslim {date}': 'Due {date}',
+  Düzenle: 'Edit',
+  'Adım ekle': 'Add step',
+  'Yetkili kişi': 'Contact person',
+  Telefon: 'Phone',
+  'E-posta': 'Email',
+  Adres: 'Address',
+  Not: 'Note',
+  'Bu projede henüz adım yok. "Adım ekle" ile başlayın.': 'This project has no steps yet. Start with "Add step".',
+  'Bu projede henüz adım yok.': 'This project has no steps yet.',
+  Adımlar: 'Steps',
+  Atanmadı: 'Not assigned',
+  'Malzeme talebi': 'Material request',
+  'Çizim talebi': 'Drawing request',
+  'Ana doküman': 'Main document',
+  'Yenisini yükle': 'Upload a new one',
+  Yükle: 'Upload',
+  'Henüz ana doküman yok.': 'No main document yet.',
+  'Proje dosyaları': 'Project files',
+  'Dosya ekle': 'Add file',
+  'Sertifika gibi başka dosyalar burada durur.': 'Other files, like certificates, go here.',
+
+  // Add step window
+  'Adım türleri': 'Step types',
+  'Henüz adım türü yok.': 'No step types yet.',
+  'Projede {n} adet': '{n} in this project',
+  Ekle: 'Add',
+  'Listede yoksa yeni adım türü oluştur': 'Not in the list? Create a new step type',
+  'Örnek: Membran yükleme': 'Example: Membrane loading',
+  'Oluştur ve ekle': 'Create and add',
+
+  // Edit project window
+  'Projeyi düzenle': 'Edit project',
+  Kaydet: 'Save',
+  'Kaydediliyor…': 'Saving…',
+  'Projeyi sil': 'Delete project',
+  'Proje, bütün adımları ve geçmişiyle birlikte silinecek. Geri alınamaz.':
+    'The project will be deleted with all its steps and history. This cannot be undone.',
+  'Evet, projeyi sil': 'Yes, delete the project',
+  Vazgeç: 'Cancel',
+}

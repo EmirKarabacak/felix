@@ -1,3 +1,4 @@
+import { locale } from './i18n'
 import { supabase } from './supabase'
 
 const BUCKET = 'dosyalar'
@@ -39,10 +40,9 @@ export function deleteFile(id: string) {
   return supabase.rpc('dosya_sil', { p_id: id })
 }
 
-const SIZE = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 })
-
 export function formatSize(bytes: number | null): string {
   if (bytes === null) return ''
+  const SIZE = new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 })
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${SIZE.format(bytes / 1024)} KB`
   return `${SIZE.format(bytes / 1024 / 1024)} MB`
