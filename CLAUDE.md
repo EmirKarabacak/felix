@@ -199,7 +199,7 @@ scripts/local-up.sh && node scripts/e2e-stage2.mjs      # projects, steps, worke
 scripts/local-up.sh && node scripts/e2e-companies.mjs   # Firmalar (23)
 scripts/local-up.sh && node scripts/e2e-approval.mjs    # approval by uzmanlık level, Takvim (31)
 FELIX_MIGRATIONS_UNTIL=0007 scripts/local-up.sh && node scripts/e2e-0008.mjs  # runs 0008 mid-test; Uzmanlık, Talepler, Dosyalar (42)
-FELIX_MIGRATIONS_UNTIL=0008 scripts/local-up.sh && node scripts/e2e-update2.mjs  # runs 0009 mid-test; finish photo, history, Özet (30)
+FELIX_MIGRATIONS_UNTIL=0008 scripts/local-up.sh && node scripts/e2e-update2.mjs  # runs 0009 mid-test; finish photo, history, Özet (31)
 scripts/local-up.sh && node scripts/e2e-language.mjs    # English, dark theme, Ayarlar switches, Ekip labels (25)
 npx tsc --noEmit && npx tsx scripts/check-i18n.ts       # types, and every text has English
 ```

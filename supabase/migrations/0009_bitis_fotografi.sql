@@ -160,3 +160,6 @@ $$;
 
 revoke all on function public.step_action(uuid, text, text, text, text) from public;
 grant execute on function public.step_action(uuid, text, text, text, text) to authenticated;
+
+-- Lets the app see the new argument straight away.
+notify pgrst, 'reload schema';

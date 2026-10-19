@@ -180,7 +180,11 @@ expect(Number(stored) > 0 && Number(stored) < 200_000, `the stored photo is smal
 expect(await photoShown(dialog(ahmet).locator('.note-review')), 'the worker sees the photo they handed in')
 
 // ---- the Genel Müdür approves, seeing the photo ----
-await page.reload()
+await page.goto(BASE)
+const reviewRow = group(page, 'Onay bekleyen işler').locator('.problem', { hasText: 'Şase imalatı' })
+await reviewRow.waitFor()
+expect(await photoShown(reviewRow), "Projeler's approval list shows the photo next to its Onayla button")
+await nav(page, 'Özet')
 await page.getByRole('heading', { name: 'Özet' }).waitFor()
 expect((await tile(page, 'Onay bekleyen')) === '2', 'Özet now counts two jobs awaiting approval')
 await group(page, 'Onay bekleyen işler').locator('button.job', { hasText: 'Şase imalatı' }).click()

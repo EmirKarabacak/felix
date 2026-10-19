@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Photo } from '../components/StepHistory'
 import { TalepList } from '../components/Talepler'
 import { Timeline } from '../components/Timeline'
 import { Dialog, ErrorNote, Field, Icon, Spinner } from '../components/ui'
@@ -185,11 +186,17 @@ export function Projeler() {
             {view.reviews.map((s) => {
               const project = data.project(s.project_id)
               const who = data.assigneesOf(s.id).map((p) => p.full_name).join(', ')
+              // The finish photo (0009), so it is seen before pressing Onayla here.
+              const photo = s.finish_photo_id ? data.dosyalarOfStep(s.id).find((f) => f.id === s.finish_photo_id) : undefined
               return (
                 <div key={s.id} className="problem">
-                  <span className="problem-icon review-icon">
-                    <Icon name="check" size={20} />
-                  </span>
+                  {photo ? (
+                    <Photo file={photo} size="small" />
+                  ) : (
+                    <span className="problem-icon review-icon">
+                      <Icon name="check" size={20} />
+                    </span>
+                  )}
                   <Link to={`/projeler/${s.project_id}`} className="problem-text">
                     <strong>{s.name}</strong>
                     <span className="sub">
