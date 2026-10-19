@@ -10,6 +10,7 @@ import { Login } from './pages/Login'
 import { Islerim } from './pages/Islerim'
 import { ProjeDetay } from './pages/ProjeDetay'
 import { Projeler } from './pages/Projeler'
+import { Ozet } from './pages/Ozet'
 import { Firmalar } from './pages/Firmalar'
 import { Turler } from './pages/Turler'
 import { WorkshopProvider } from './lib/workshop'
@@ -52,8 +53,8 @@ export function App() {
           <Route path="/projeler" element={<Projeler />} />
           <Route path="/projeler/:id" element={<ProjeDetay />} />
           <Route path="/ayarlar" element={<Ayarlar />} />
-          {/* Genel Müdür and IT hand out work rather than receiving it, so have no İşlerim. */}
-          {panel !== 'ceo' ? <Route path="/islerim" element={<Islerim />} /> : null}
+          {/* Genel Müdür and IT hand out work rather than receiving it: Özet instead of İşlerim. */}
+          {panel === 'ceo' ? <Route path="/ozet" element={<Ozet />} /> : <Route path="/islerim" element={<Islerim />} />}
           {manages ? (
             <>
               <Route path="/ekip" element={<Ekip />} />

@@ -288,9 +288,11 @@ async function storage(req: IncomingMessage, res: ServerResponse, path: string, 
       if (!c || c.url !== `${bucket}/${name}`) return send(res, 400, { statusCode: '400', error: 'InvalidJWT', message: 'invalid signature' })
       const file = readFileSync(join(FILES, bucket, name))
       const download = query.get('download')
+      // Served with the type it was uploaded with, as Supabase does, so a photo shows in the page.
+      const { rows } = await pool.query('select metadata from storage.objects where bucket_id = $1 and name = $2', [bucket, name])
       res.writeHead(200, {
         ...CORS,
-        'Content-Type': 'application/octet-stream',
+        'Content-Type': rows[0]?.metadata?.mimetype ?? 'application/octet-stream',
         ...(download !== null ? { 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(download || name)}` } : {}),
       })
       return res.end(file)

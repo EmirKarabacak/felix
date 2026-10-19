@@ -20,6 +20,16 @@ begin
   raise exception 'FAILED: % was allowed', label;
 end $$;
 
+-- Finishing needs a photo (0009): adds one to the step, as the signed-in
+-- person, and returns its stored path for step_action.
+create function pg_temp.photo(p_step uuid) returns text language plpgsql as $$
+declare v_path text := 's/' || p_step || '/' || gen_random_uuid();
+begin
+  perform public.dosya_ekle((select project_id from public.project_steps where id = p_step), p_step, false,
+    'Bitiş fotoğrafı.jpg', v_path, 1000, 'image/jpeg');
+  return v_path;
+end $$;
+
 create function pg_temp.affected(stmt text) returns bigint language plpgsql as $$
 declare n bigint;
 begin
@@ -56,9 +66,9 @@ insert into public.step_assignees (step_id, user_id) values
 
 -- worker without an uzmanlık
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c"}', false);
-select pg_temp.expect(public.step_action(:'plain', 'finish') = 'review', 'a finish without the uzmanlık always waits for approval');
+select pg_temp.expect(public.step_action(:'plain', 'finish', null, null, pg_temp.photo(:'plain')) = 'review', 'a finish without the uzmanlık always waits for approval');
 select pg_temp.expect(public.step_action(:'gated', 'start') = 'active', 'worker starts a step');
-select pg_temp.expect(public.step_action(:'gated', 'finish') = 'review', 'and finishing it sends it for approval');
+select pg_temp.expect(public.step_action(:'gated', 'finish', null, null, pg_temp.photo(:'gated')) = 'review', 'and finishing it sends it for approval');
 select pg_temp.expect((select submitted_at is not null and finished_at is null from public.project_steps where id = :'gated'), 'it has a hand-in time but no finish time yet');
 select pg_temp.fails(format($$select public.step_action(%L, 'approve')$$, :'gated'), 'a worker cannot approve their own step');
 select pg_temp.fails(format($$select public.step_action(%L, 'reject', null, 'x')$$, :'gated'), 'a worker cannot send a step back');
@@ -82,7 +92,7 @@ select pg_temp.expect((select review_note is not null from public.project_steps 
 select pg_temp.expect(public.step_action(:'gated', 'problem', 'Makine arızası') = 'problem', 'a problem can be reported while redoing');
 select pg_temp.expect(public.step_action(:'gated', 'start') = 'active', 'and work carried on');
 select pg_temp.expect((select review_note = 'Kaynak dikişleri taşlanmamış' from public.project_steps where id = :'gated'), 'the manager''s note is still there');
-select pg_temp.expect(public.step_action(:'gated', 'finish') = 'review', 'the worker hands it in again');
+select pg_temp.expect(public.step_action(:'gated', 'finish', null, null, pg_temp.photo(:'gated')) = 'review', 'the worker hands it in again');
 select pg_temp.expect((select review_note is null from public.project_steps where id = :'gated'), 'handing in again clears the old note');
 select submitted_at as handed_in from public.project_steps where id = :'gated' \gset
 
@@ -98,7 +108,7 @@ select pg_temp.expect(
 select pg_temp.expect((select detail from public.step_events where step_id = :'gated' and kind = 'rejected') = 'Kaynak dikişleri taşlanmamış', 'including why it was sent back');
 
 -- a manager's or the CEO's own finish needs nobody's approval
-select pg_temp.expect(public.step_action(:'added', 'finish') = 'done', 'a manager or CEO finishing a step completes it directly');
+select pg_temp.expect(public.step_action(:'added', 'finish', null, null, pg_temp.photo(:'added')) = 'done', 'a manager or CEO finishing a step completes it directly');
 
 -- a Çırak is treated like a Kalfa; an Usta's finish counts at once
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
@@ -108,13 +118,13 @@ insert into public.kisi_uzmanliklari (user_id, uzmanlik_id, seviye)
 select '00000000-0000-0000-0000-00000000000c', id, 'cirak' from public.uzmanliklar where name = 'Kaynakçı';
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c"}', false);
 select pg_temp.expect((select count(*) from public.kisi_uzmanliklari) = 0, 'a worker cannot see levels, not even their own');
-select pg_temp.expect(public.step_action(:'usta_step', 'finish') = 'review', 'a Çırak''s finish waits for approval too');
+select pg_temp.expect(public.step_action(:'usta_step', 'finish', null, null, pg_temp.photo(:'usta_step')) = 'review', 'a Çırak''s finish waits for approval too');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
 select pg_temp.expect(public.step_action(:'usta_step', 'reject', null, 'Tekrar') = 'active', 'manager sends it back');
 select pg_temp.expect(pg_temp.affected($$update public.kisi_uzmanliklari set seviye = 'usta' where user_id = '00000000-0000-0000-0000-00000000000c'$$) = 1,
   'a manager can make someone an Usta');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c"}', false);
-select pg_temp.expect(public.step_action(:'usta_step', 'finish') = 'done', 'an Usta''s finish counts at once');
+select pg_temp.expect(public.step_action(:'usta_step', 'finish', null, null, pg_temp.photo(:'usta_step')) = 'done', 'an Usta''s finish counts at once');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
 select pg_temp.expect(public.step_action(:'gated', 'reopen') = 'active', 'a reopened step is in progress again');
 select pg_temp.expect(public.step_action(:'gated', 'reset') = 'waiting', 'and can be reset');

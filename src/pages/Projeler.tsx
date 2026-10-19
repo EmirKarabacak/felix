@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Photo } from '../components/StepHistory'
 import { TalepList } from '../components/Talepler'
 import { Timeline } from '../components/Timeline'
 import { Dialog, ErrorNote, Field, Icon, Spinner } from '../components/ui'
@@ -185,11 +186,17 @@ export function Projeler() {
             {view.reviews.map((s) => {
               const project = data.project(s.project_id)
               const who = data.assigneesOf(s.id).map((p) => p.full_name).join(', ')
+              // The finish photo (0009), so it is seen before pressing Onayla here.
+              const photo = s.finish_photo_id ? data.dosyalarOfStep(s.id).find((f) => f.id === s.finish_photo_id) : undefined
               return (
                 <div key={s.id} className="problem">
-                  <span className="problem-icon review-icon">
-                    <Icon name="check" size={20} />
-                  </span>
+                  {photo ? (
+                    <Photo file={photo} size="small" />
+                  ) : (
+                    <span className="problem-icon review-icon">
+                      <Icon name="check" size={20} />
+                    </span>
+                  )}
                   <Link to={`/projeler/${s.project_id}`} className="problem-text">
                     <strong>{s.name}</strong>
                     <span className="sub">
@@ -253,7 +260,7 @@ export function Projeler() {
   )
 }
 
-function Tile({ label, value, tone }: { label: string; value: number; tone?: 'active' | 'late' | 'problem' | 'review' }) {
+export function Tile({ label, value, tone }: { label: string; value: number; tone?: 'active' | 'late' | 'problem' | 'review' | 'done' }) {
   return (
     <div className="card tile">
       <div className="tile-label">{label}</div>
@@ -262,7 +269,8 @@ function Tile({ label, value, tone }: { label: string; value: number; tone?: 'ac
   )
 }
 
-function ProjectCard({ project, data }: { project: Project; data: Workshop }) {
+/** lateDays: shown on Özet, where the project itself is past its delivery date. */
+export function ProjectCard({ project, data, lateDays }: { project: Project; data: Workshop; lateDays?: number }) {
   const steps = data.stepsOf(project.id)
   const company = data.company(project.company_id)
   const late = steps.some(isLate)
@@ -280,7 +288,11 @@ function ProjectCard({ project, data }: { project: Project; data: Workshop }) {
         <span className="sub">{progressText(steps)}</span>
         <span className="flags">
           {problems > 0 ? <span className="badge status-problem">{t('{n} sorun', { n: problems })}</span> : null}
-          {late ? <span className="badge status-late">{t('Gecikme var')}</span> : null}
+          {lateDays ? (
+            <span className="badge status-late">{t('{n} gün gecikti', { n: lateDays })}</span>
+          ) : late ? (
+            <span className="badge status-late">{t('Gecikme var')}</span>
+          ) : null}
         </span>
       </span>
     </Link>

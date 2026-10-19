@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useProfile } from '../lib/auth'
+import { shrinkPhoto, uploadFile } from '../lib/dosyalar'
 import { t } from '../lib/i18n'
 import { SEVIYE_LABEL, SEVIYELER, canManage, supabase, type Profile } from '../lib/supabase'
 import {
@@ -16,6 +17,7 @@ import {
   type Workshop,
 } from '../lib/workshop'
 import { FileSection } from './Dosyalar'
+import { Photo, StepHistory } from './StepHistory'
 import { TalepList } from './Talepler'
 import { Dialog, ErrorNote, Field, Icon } from './ui'
 
@@ -42,6 +44,8 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [rejecting, setRejecting] = useState(false)
   const [rejectNote, setRejectNote] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const camera = useRef<HTMLInputElement>(null)
 
   const step = data?.steps.find((s) => s.id === stepId)
   if (!data || !step) return null // removed by someone else while open
@@ -65,6 +69,29 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
   }
 
   const act = (action: Parameters<typeof stepAction>[1]) => run(() => stepAction(step.id, action))
+
+  // Finishing takes a photo of the work, like returning a Lime bike (0009),
+  // for everyone. "İşi bitir" opens the camera; once the photo is taken it is
+  // added to the step's files and the step is finished.
+  const needsPhoto = data.photoReady
+
+  function finish() {
+    if (needsPhoto) camera.current?.click()
+    else void act('finish')
+  }
+
+  async function finishWithPhoto(taken: File | undefined) {
+    if (camera.current) camera.current.value = ''
+    if (!taken) return
+    setUploading(true)
+    await run(async () => {
+      const photo = await shrinkPhoto(taken, photoName())
+      const uploaded = await uploadFile(photo, { projectId: step!.project_id, stepId: step!.id })
+      if (uploaded.error) return uploaded
+      return stepAction(step!.id, 'finish', undefined, undefined, uploaded.path)
+    })
+    setUploading(false)
+  }
 
   // After 0008, "Malzeme eksik" names the material, and opens a request for it.
   const asksMaterial = data.ready && reason === 'Malzeme eksik'
@@ -104,6 +131,7 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
 
   const subtitle = [project?.code, project?.name].filter(Boolean).join(' · ')
   const talepler = data.taleplerOfStep(step.id)
+  const finishPhoto = step.finish_photo_id ? data.dosyalarOfStep(step.id).find((f) => f.id === step.finish_photo_id) : undefined
 
   if (rejecting) {
     return (
@@ -221,6 +249,7 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
         <div className="note note-review" role="status">
           <strong>{manages ? t('Bu iş onayınızı bekliyor.') : t('Onay bekleniyor.')}</strong>
           {step.submitted_at ? <div>{t('Teslim edildi: {time}', { time: formatMoment(step.submitted_at) })}</div> : null}
+          {finishPhoto ? <Photo file={finishPhoto} /> : null}
         </div>
       ) : null}
       {step.review_note && step.status !== 'review' && step.status !== 'done' ? (
@@ -274,6 +303,13 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
         ) : null}
       </div>
 
+      {step.status === 'done' && finishPhoto ? (
+        <div className="stack finish-photo">
+          <div className="field-label">{t('Bitiş fotoğrafı')}</div>
+          <Photo file={finishPhoto} />
+        </div>
+      ) : null}
+
       <ErrorNote>{error}</ErrorNote>
 
       {canAct ? (
@@ -284,14 +320,31 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
             </button>
           ) : null}
           {step.status === 'active' || (manages && step.status === 'waiting') ? (
-            <button
-              type="button"
-              className={`btn ${step.status === 'active' ? 'btn-primary' : 'btn-tint'} btn-big press`}
-              disabled={busy}
-              onClick={() => void act('finish')}
-            >
-              {t('İşi bitir')}
-            </button>
+            <>
+              <button
+                type="button"
+                className={`btn ${step.status === 'active' ? 'btn-primary' : 'btn-tint'} btn-big press`}
+                disabled={busy}
+                onClick={finish}
+              >
+                {uploading ? t('Fotoğraf yükleniyor…') : t('İşi bitir')}
+              </button>
+              {needsPhoto ? (
+                <>
+                  {/* capture: phones open the camera straight away; a computer offers its files. */}
+                  <input
+                    ref={camera}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    hidden
+                    aria-label={t('Bitiş fotoğrafı')}
+                    onChange={(e) => void finishWithPhoto(e.target.files?.[0])}
+                  />
+                  <div className="hint">{t('İşi bitirince kamera açılır: yapılan işin fotoğrafını çekin.')}</div>
+                </>
+              ) : null}
+            </>
           ) : null}
           {step.status === 'problem' ? (
             <button type="button" className="btn btn-primary btn-big press" disabled={busy} onClick={() => void act('start')}>
@@ -376,6 +429,8 @@ export function StepDialog({ stepId, onClose }: { stepId: string; onClose: () =>
         />
       ) : null}
 
+      <StepHistory step={step} />
+
       {manages ? (
         <div className="dialog-foot">
           <div className="pair">
@@ -450,4 +505,12 @@ function assignGroups(data: Workshop, step: Step, people: Profile[]): AssignGrou
       people: g.people.map((p) => ({ person: p, note: note(p) })),
     })),
   ]
+}
+
+/** "Bitiş fotoğrafı 2026-10-19 14.32": the time keeps each finish's photo apart from the last one. */
+function photoName(): string {
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}.${pad(now.getMinutes())}`
+  return t('Bitiş fotoğrafı {time}', { time: stamp })
 }

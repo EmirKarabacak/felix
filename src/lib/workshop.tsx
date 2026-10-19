@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { friendly } from './errors'
 import { locale, t } from './i18n'
-import { canManage, fetchProfiles, seviyeLabel, supabase, type Bolum, type BolumKod, type DbStage, type Profile, type Seviye } from './supabase'
+import { canManage, fetchProfiles, isMissingColumn, seviyeLabel, supabase, type Bolum, type BolumKod, type DbStage, type Profile, type Seviye } from './supabase'
 
 export type StepStatus = 'waiting' | 'active' | 'problem' | 'review' | 'done'
 
@@ -30,6 +30,19 @@ export type Step = {
   submitted_at: string | null
   /** Why a manager sent the step back, shown to the worker until it is handed in again. */
   review_note: string | null
+  /** The photo taken at the latest finish (0009): a file of this step. */
+  finish_photo_id: string | null
+}
+
+/** One line of a step's history: who did what and when. */
+export type StepEvent = {
+  id: string
+  actor_id: string | null
+  kind: string
+  detail: string | null
+  created_at: string
+  /** The photo taken at this finish (0009). */
+  dosya_id: string | null
 }
 
 export type NamedItem = { id: string; name: string }
@@ -103,6 +116,8 @@ type Raw = {
   bolumReady: boolean
   /** False until 0008 has been run: Uzmanlık, Talepler and Dosyalar are then hidden. */
   ready: boolean
+  /** False until 0009 has been run: finishing then needs no photo. */
+  photoReady: boolean
   stepTypes: StepType[]
   projectTypes: NamedItem[]
   projectTypeSteps: ProjectTypeStep[]
@@ -158,14 +173,19 @@ async function load(): Promise<Raw> {
   const stage: DbStage = people.stage
   const ready = stage >= 8
   const none = Promise.resolve({ data: [], error: null })
-  const [projects, steps, assignees, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails, bolumler, uzmanliklar, kisiUzmanliklari, talepler, dosyalar] = await Promise.all([
+  const STEP_COLUMNS =
+    'id, project_id, step_type_id, name, position, due_date, status, problem_reason, problem_note, started_at, finished_at, submitted_at, review_note'
+  const stepsQuery = (columns: string) => supabase.from('project_steps').select(columns).order('position')
+  // The photo column comes with 0009; before it, read the steps without it.
+  const loadSteps = async () => {
+    if (!ready) return { result: await stepsQuery(STEP_COLUMNS), photoReady: false }
+    const full = await stepsQuery(`${STEP_COLUMNS}, finish_photo_id`)
+    if (!isMissingColumn(full.error)) return { result: full, photoReady: true }
+    return { result: await stepsQuery(STEP_COLUMNS), photoReady: false }
+  }
+  const [projects, stepsLoad, assignees, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails, bolumler, uzmanliklar, kisiUzmanliklari, talepler, dosyalar] = await Promise.all([
     supabase.from('projects').select('id, code, name, due_date, project_type_id, company_id, created_at').order('created_at'),
-    supabase
-      .from('project_steps')
-      .select(
-        'id, project_id, step_type_id, name, position, due_date, status, problem_reason, problem_note, started_at, finished_at, submitted_at, review_note',
-      )
-      .order('position'),
+    loadSteps(),
     supabase.from('step_assignees').select('step_id, user_id'),
     supabase.from('step_types').select(ready ? 'id, name, uzmanlik_id' : 'id, name').order('name'),
     supabase.from('project_types').select('id, name').order('name'),
@@ -188,11 +208,12 @@ async function load(): Promise<Raw> {
           .order('created_at')
       : none,
   ])
+  const steps = stepsLoad.result
   const failed = [projects, steps, assignees, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails, bolumler, uzmanliklar, kisiUzmanliklari, talepler, dosyalar].find((r) => r.error)
   if (failed?.error) throw failed.error
   return {
     projects: projects.data as Project[],
-    steps: steps.data as unknown as Step[],
+    steps: (steps.data as unknown as Step[]).map((s) => ({ ...s, finish_photo_id: s.finish_photo_id ?? null })),
     assignees: assignees.data as Raw['assignees'],
     people: people.data as Profile[],
     bolumler: (bolumler.data as unknown as Bolum[]).map((b) => ({ ...b, kod: b.kod ?? null })),
@@ -202,6 +223,7 @@ async function load(): Promise<Raw> {
     dosyalar: dosyalar.data as Dosya[],
     bolumReady: stage >= 7,
     ready,
+    photoReady: stepsLoad.photoReady,
     stepTypes: (stepTypes.data as unknown as StepType[]).map((t) => ({ ...t, uzmanlik_id: t.uzmanlik_id ?? null })),
     projectTypes: projectTypes.data as NamedItem[],
     projectTypeSteps: projectTypeSteps.data as ProjectTypeStep[],
@@ -511,11 +533,28 @@ export function isFinished(steps: Step[]): boolean {
 /** Calls the one function that changes a step's status (see the stage 2 migration). */
 export type StepActionName = 'start' | 'finish' | 'problem' | 'approve' | 'reject' | 'reopen' | 'reset'
 
-export function stepAction(stepId: string, action: StepActionName, reason?: string, note?: string) {
+export function stepAction(stepId: string, action: StepActionName, reason?: string, note?: string, photoPath?: string) {
   return supabase.rpc('step_action', {
     p_step_id: stepId,
     p_action: action,
     p_reason: reason ?? null,
     p_note: note ?? null,
+    // Only after 0009, which added this argument; before it the call would fail.
+    ...(photoPath ? { p_photo_path: photoPath } : {}),
   })
+}
+
+/** A step's history, oldest first. Read when the step window opens. */
+export async function fetchStepEvents(stepId: string, photoReady: boolean) {
+  const columns = `id, actor_id, kind, detail, created_at${photoReady ? ', dosya_id' : ''}`
+  const { data, error } = await supabase.from('step_events').select(columns).eq('step_id', stepId).order('created_at')
+  const events = ((data ?? []) as unknown as StepEvent[]).map((e) => ({ ...e, dosya_id: e.dosya_id ?? null }))
+  return { events, error }
+}
+
+/** Monday 00:00 of this week, local time. */
+export function startOfWeek(now = new Date()): Date {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7))
+  return start
 }

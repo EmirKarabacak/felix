@@ -176,4 +176,5 @@ export const genel: Dictionary = {
     'Only the General Manager, IT, Department Heads and Design can add project files.',
   'Dosyaları yalnızca Genel Müdür, IT, Bölüm Sorumluları ve Tasarım silebilir.':
     'Only the General Manager, IT, Department Heads and Design can delete files.',
+  'İşi bitirmek için bir fotoğraf çekin.': 'Take a photo to finish the job.',
 }

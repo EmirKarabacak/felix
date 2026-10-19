@@ -21,6 +21,16 @@ begin
   raise exception 'FAILED: % was allowed', label;
 end $$;
 
+-- Finishing needs a photo (0009): adds one to the step, as the signed-in
+-- person, and returns its stored path for step_action.
+create function pg_temp.photo(p_step uuid) returns text language plpgsql as $$
+declare v_path text := 's/' || p_step || '/' || gen_random_uuid();
+begin
+  perform public.dosya_ekle((select project_id from public.project_steps where id = p_step), p_step, false,
+    'Bitiş fotoğrafı.jpg', v_path, 1000, 'image/jpeg');
+  return v_path;
+end $$;
+
 create function pg_temp.affected(stmt text) returns bigint language plpgsql as $$
 declare n bigint;
 begin
@@ -111,15 +121,15 @@ select s, '00000000-0000-0000-0000-00000000000c'
 from unnest(array[:'kaynak', :'kaynak2', :'elektrik', :'boya', :'genel']::uuid[]) as s;
 
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c"}', false);
-select pg_temp.expect(public.step_action(:'kaynak', 'finish') = 'done', 'a Kaynakçı Usta finishes a Kaynak step at once');
-select pg_temp.expect(public.step_action(:'elektrik', 'finish') = 'review', 'the same person waits on an Elektrik step (no Elektrikçi uzmanlık)');
-select pg_temp.expect(public.step_action(:'boya', 'finish') = 'review', 'and on a Boya step, where they are Çırak');
-select pg_temp.expect(public.step_action(:'genel', 'finish') = 'review', 'a step with no uzmanlık always waits');
+select pg_temp.expect(public.step_action(:'kaynak', 'finish', null, null, pg_temp.photo(:'kaynak')) = 'done', 'a Kaynakçı Usta finishes a Kaynak step at once');
+select pg_temp.expect(public.step_action(:'elektrik', 'finish', null, null, pg_temp.photo(:'elektrik')) = 'review', 'the same person waits on an Elektrik step (no Elektrikçi uzmanlık)');
+select pg_temp.expect(public.step_action(:'boya', 'finish', null, null, pg_temp.photo(:'boya')) = 'review', 'and on a Boya step, where they are Çırak');
+select pg_temp.expect(public.step_action(:'genel', 'finish', null, null, pg_temp.photo(:'genel')) = 'review', 'a step with no uzmanlık always waits');
 
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
 update public.profiles set bolum_id = (select id from public.bolumler where kod = 'satinalma') where username = 'worker';
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c"}', false);
-select pg_temp.expect(public.step_action(:'kaynak2', 'finish') = 'review', 'outside İmalat even an Usta''s finish waits');
+select pg_temp.expect(public.step_action(:'kaynak2', 'finish', null, null, pg_temp.photo(:'kaynak2')) = 'review', 'outside İmalat even an Usta''s finish waits');
 
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
 select pg_temp.expect(public.step_action(:'elektrik', 'approve') = 'done', 'a Bölüm Sorumlusu approves');

@@ -21,6 +21,16 @@ begin
   raise exception 'FAILED: % was allowed', label;
 end $$;
 
+-- Finishing needs a photo (0009): adds one to the step, as the signed-in
+-- person, and returns its stored path for step_action.
+create function pg_temp.photo(p_step uuid) returns text language plpgsql as $$
+declare v_path text := 's/' || p_step || '/' || gen_random_uuid();
+begin
+  perform public.dosya_ekle((select project_id from public.project_steps where id = p_step), p_step, false,
+    'Bitiş fotoğrafı.jpg', v_path, 1000, 'image/jpeg');
+  return v_path;
+end $$;
+
 create function pg_temp.affected(stmt text) returns bigint language plpgsql as $$
 declare n bigint;
 begin
@@ -110,11 +120,11 @@ select pg_temp.fails(format($$select public.step_action(%L, 'reopen')$$, :'step1
 
 -- the other assignee finishes: the whole step is done for everyone
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000e"}', false);
-select pg_temp.expect(public.step_action(:'step1', 'finish') = 'done', 'any one assignee finishes the whole step');
+select pg_temp.expect(public.step_action(:'step1', 'finish', null, null, pg_temp.photo(:'step1')) = 'done', 'any one assignee finishes the whole step');
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000c"}', false);
 select pg_temp.expect((select status = 'done' and finished_at is not null from public.project_steps where id = :'step1'), 'the first worker sees it finished, with a finish time');
 select pg_temp.fails(format($$select public.step_action(%L, 'start')$$, :'step1'), 'a finished step cannot be restarted by a worker');
-select pg_temp.expect(public.step_action(:'step3', 'finish') = 'done', 'a step can be finished without pressing start first');
+select pg_temp.expect(public.step_action(:'step3', 'finish', null, null, pg_temp.photo(:'step3')) = 'done', 'a step can be finished without pressing start first');
 select pg_temp.expect((select started_at is not null from public.project_steps where id = :'step3'), 'and still gets a start time');
 select pg_temp.expect(
   (select string_agg(kind, ',' order by created_at, kind) from public.step_events where step_id = :'step1' and kind not in ('assigned'))
