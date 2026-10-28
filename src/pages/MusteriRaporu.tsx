@@ -1,11 +1,13 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import type { MusteriRaporu as Rapor } from '../../shared/rapor'
-import { MusteriRaporuBelgesi } from '../components/Rapor'
+import { PdfKaydet, PdfOnizleme, useRaporPdf } from '../components/Rapor'
 import { ErrorNote, Field, Icon } from '../components/ui'
 import { callApi } from '../lib/api'
+import { formatSize } from '../lib/dosyalar'
 import { friendly } from '../lib/errors'
 import { t } from '../lib/i18n'
+import { musteriRaporuBelgesi } from '../lib/pdf'
 
 /**
  * "Proje raporu sorgula": a customer types the code they were given and sees
@@ -42,14 +44,8 @@ export function MusteriRaporu() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => {
-    if (!rapor) return
-    const before = document.title
-    document.title = [rapor.kod, rapor.ad, t('Proje raporu')].filter(Boolean).join(' - ')
-    return () => {
-      document.title = before
-    }
-  }, [rapor])
+  const belge = useMemo(() => (rapor?.hazir ? musteriRaporuBelgesi(rapor) : null), [rapor])
+  const pdf = useRaporPdf(belge)
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -70,16 +66,37 @@ export function MusteriRaporu() {
   )
 
   if (rapor?.hazir) {
+    const files = rapor.dosyalar.filter((d) => !d.foto)
     return (
       <div className="page report-page public-report">
-        <div className="report-bar no-print">
+        <div className="report-bar">
           {again}
-          <button type="button" className="btn btn-primary press" onClick={() => window.print()}>
-            <Icon name="download" size={18} />
-            {t('PDF olarak kaydet')}
-          </button>
+          <PdfKaydet pdf={pdf} />
         </div>
-        <MusteriRaporuBelgesi rapor={rapor} />
+        {files.length ? (
+          <section className="stack" aria-label={t('Belgeler')}>
+            <div className="field-label">{t('Belgeler')}</div>
+            <div className="card rows file-list">
+              {files.map((d) => (
+                <div key={d.id} className="file-row">
+                  <a href={d.indir} className="file-open press" aria-label={t('{name} indir', { name: d.ad })}>
+                    <span className="file-icon">
+                      <Icon name="doc" size={22} />
+                    </span>
+                    <span className="file-text">
+                      <span className="file-name">{d.ad}</span>
+                      <span className="sub">{formatSize(d.boyut)}</span>
+                    </span>
+                    <span className="file-go">
+                      <Icon name="download" size={18} />
+                    </span>
+                  </a>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+        <PdfOnizleme pdf={pdf} />
       </div>
     )
   }

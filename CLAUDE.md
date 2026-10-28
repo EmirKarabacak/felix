@@ -147,9 +147,17 @@ their phones and press start / finish / report a problem.
   talepler, finish photos, per person; everyone assigned counts as having done
   the step, Emir: no ticking who worked, no planned times) and Müşteri raporu
   (no names; only photos and files a manager ticked, `dosyalar.musteriye`).
-  Both on the Aquafelix letterhead (`public/aquafelix-logo.png` centred at the
-  top, the address line at the bottom, repeated on each printed page) and
-  saved with "PDF olarak kaydet" (the browser's print). Customers use "Proje
+  The İç rapor also says who approved each step and who sent it back, with
+  their note. Both are A4 PDF files that Felix makes itself (`src/lib/pdf.ts`,
+  pdfmake), never the browser's print, because Emir needs the same document
+  from every device: one font inside the file (Inter, `public/fonts`, subset
+  to Latin and Turkish; the app screens keep the system font, Emir), photos
+  inside the file (shrunk, shown whole), Istanbul time on every device, the
+  Aquafelix letterhead on every page (logo centred at the top, the address on
+  two centred lines and "Sayfa 1 / 3" at the bottom). The page shows the file's
+  own pages (pdf.js, `PdfOnizleme`); "PDF olarak kaydet" opens the share sheet
+  on a phone ("Dosyalar'a Kaydet") and downloads on a computer. The manager's
+  Müşteri raporu is the customer's file exactly. Customers use "Proje
   raporu sorgula" on the sign-in page (`/rapor`, also `/rapor?kod=...`): before
   every step is done only "Projeniz hazırlanıyor". It goes through
   `POST /api/rapor`, which calls `musteri_raporu()` (server only; counts wrong
@@ -218,10 +226,10 @@ SwiftUI's ConcentricRectangle):
   in the Supabase SQL Editor (copy from GitHub, paste, Run). So every migration
   must be safe to run more than once and must also work as one transaction.
   Push the front end so it still works before he has run the new file, and tell
-  him clearly which file to run. 0001 to 0010 have been run; 0011 (project
-  report) is new: Claude runs it with the connector right after its PR merges
-  (it has no `drop` lines on purpose; before it runs there are no codes,
-  report or delivery: `reportReady` in `workshop.tsx`)
+  him clearly which file to run. 0001 to 0011 have been run (0011, the project
+  report, by Claude with the connector after its PR merged; it has no `drop`
+  lines on purpose; before it runs there are no codes, report or delivery:
+  `reportReady` in `workshop.tsx`)
   (0008 also created the Storage bucket and its access rules; 0010 added
   notifications, and before it runs there is no bell, card or switch:
   `bildirimReady` in `workshop.tsx`). The Supabase
@@ -250,7 +258,7 @@ scripts/local-up.sh && node scripts/e2e-approval.mjs    # approval by uzmanlık 
 FELIX_MIGRATIONS_UNTIL=0007 scripts/local-up.sh && node scripts/e2e-0008.mjs  # runs 0008 mid-test; Uzmanlık, Talepler, Dosyalar (42)
 FELIX_MIGRATIONS_UNTIL=0008 scripts/local-up.sh && node scripts/e2e-update2.mjs  # runs 0009 mid-test; finish photo, history, Özet (31)
 FELIX_MIGRATIONS_UNTIL=0009 scripts/local-up.sh && node scripts/e2e-update3.mjs  # runs 0010 mid-test; bell, phone alerts, Ayarlar switch (45)
-FELIX_MIGRATIONS_UNTIL=0010 scripts/local-up.sh && node scripts/e2e-update4.mjs  # runs 0011 mid-test; codes, delivery, reports, customer page (51)
+FELIX_MIGRATIONS_UNTIL=0010 scripts/local-up.sh && node scripts/e2e-update4.mjs  # runs 0011 mid-test; codes, delivery, report files, customer page (58)
 scripts/local-up.sh && node scripts/e2e-language.mjs    # English, dark theme, Ayarlar switches, Ekip labels (25)
 npx tsc --noEmit && npx tsx scripts/check-i18n.ts       # types, and every text has English
 ```
@@ -261,7 +269,10 @@ the screenshots, desktop and phone width. The e2e suites "take" the finish
 photo from `scripts/e2e-photo.mjs` whenever Felix opens the camera; database
 tests use `pg_temp.photo(step)`. Phone alerts go to a local stand-in push
 service (`scripts/e2e-push.mjs`) that decrypts them as a phone would; the page
-is made to look like a phone that allowed alerts.
+is made to look like a phone that allowed alerts. The report test saves the
+PDF files and reads them back with poppler (`pdftotext`, `pdfinfo`,
+`pdffonts`, `pdfimages`), and starts the browser with a UTF-8 locale so a
+download keeps its Turkish name.
 
 ## Status and what is next
 

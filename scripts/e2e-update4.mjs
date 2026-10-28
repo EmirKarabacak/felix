@@ -45,7 +45,8 @@ const as = (username, text) =>
     `begin; select set_config('request.jwt.claims', json_build_object('sub', (select id from public.profiles where username = '${username}'))::text, true); set local role authenticated; ${text}; commit;`,
   )
 
-const browser = await chromium.launch()
+// A UTF-8 locale, so a download keeps its Turkish file name.
+const browser = await chromium.launch({ env: { ...process.env, LANG: 'C.UTF-8' } })
 const problems = []
 let nextFile = null
 function watch(p, name) {
@@ -88,6 +89,45 @@ const imagesLoaded = (scope) =>
     for (const img of imgs) if (!img.complete) await new Promise((done) => img.addEventListener('load', done, { once: true }))
     return imgs.length > 0 && imgs.every((img) => img.naturalWidth > 0)
   })
+/** Runs a poppler tool on a saved file. */
+const poppler = (tool, ...args) => execFileSync(tool, args).toString()
+/**
+ * Waits for the report's pages on screen, saves the file with "PDF olarak
+ * kaydet" and reads it back: its text, pages, fonts and pictures. With a
+ * condition, saves again until the file meets it (a tick makes a new file).
+ */
+async function savedPdf(p, file, until = () => true) {
+  for (let i = 0; ; i++) {
+    await p.locator('.pdf-pages canvas.pdf-page').first().waitFor()
+    const button = p.getByRole('button', { name: /^(PDF olarak kaydet|Save as PDF)$/ })
+    await button.waitFor()
+    // A new file may start being made just as the button is pressed: then press it again.
+    const download = await Promise.all([p.waitForEvent('download', { timeout: 5000 }), button.click()]).then(
+      ([d]) => d,
+      () => null,
+    )
+    if (!download) {
+      if (i === 20) throw new Error(`FAILED: no file was saved (${file})`)
+      continue
+    }
+    await download.saveAs(file)
+    const images = poppler('pdfimages', '-list', file).split('\n').slice(2).filter(Boolean)
+    const r = {
+      name: download.suggestedFilename(),
+      text: poppler('pdftotext', '-layout', file, '-'),
+      info: poppler('pdfinfo', file),
+      fonts: poppler('pdffonts', file),
+      jpegs: images.filter((l) => /\bjpeg\b/.test(l)).length,
+      logos: images.filter((l) => !/\bjpeg\b/.test(l) && !/\bsmask\b/.test(l)).length,
+    }
+    r.pages = Number(r.info.match(/Pages:\s+(\d+)/)[1])
+    if (until(r)) return r
+    if (i === 20) throw new Error(`FAILED: the saved file never changed as expected (${file})`)
+    await p.waitForTimeout(500)
+  }
+}
+/** The file's text without the line that says when it was made. */
+const withoutDate = (text) => text.replace(/(Rapor tarihi|Report date): .*/, '')
 const yy = sql(`select to_char(now() at time zone 'Europe/Istanbul', 'YY')`)
 
 // ---- setup: Genel Müdür, a Bölüm Sorumlusu and a Personel in İmalat ----
@@ -277,30 +317,33 @@ await page.getByText('Basinc testi sertifikasi.pdf').first().waitFor()
 
 // ---- İç rapor ----
 await deliver.getByRole('link', { name: 'Rapor' }).click()
-const paper = page.locator('.paper')
-await paper.locator('.doc-step').first().waitFor()
-const fact = async (label) => (await paper.locator('.doc-fact', { has: page.locator('dt', { hasText: label }) }).locator('dd').innerText()).trim()
-expect((await fact('Proje kodu')) === code && (await fact('Firma')) === 'Deniz Su A.Ş.', 'the report shows the code and the company')
-expect((await fact('Teslim durumu')) === '2 gün geç', `planned two days ago and delivered today: "${await fact('Teslim durumu')}"`)
-const s1 = await paper.locator('.doc-step', { hasText: 'Şase imalatı' }).innerText()
-expect(s1.includes('Ahmet Yılmaz'), 'each step shows who did it')
-expect(s1.includes('Çalışma: 21 sa'), `work time leaves out the waits: ${s1.replace(/\n/g, ' | ')}`)
-expect(s1.includes('Sorun beklemesi: 3 sa') && s1.includes('Onay beklemesi: 3 sa'), 'the problem and approval waits are shown apart')
-expect(s1.includes('1 kez geri gönderildi') && s1.includes('Sorun: Malzeme eksik'), 'with the send-back and the problem')
-expect((await paper.locator('.doc-totals').innerText()).includes('1 gün'), 'the total work time is one day (21 h + 3 h)')
-const people = await paper.locator('.doc-table tbody tr').allInnerTexts()
-expect(people.length === 2 && people[0].startsWith('Ahmet Yılmaz') && people[0].includes('21 sa'), `each person's steps and time: ${people.join(' / ').replace(/\t/g, ' ')}`)
-expect((await paper.locator('.doc-list').innerText()).includes('Malzeme talebi: Paslanmaz profil 40x40 · 12 boy'), 'the material request is listed')
-expect((await paper.locator('.doc-list').innerText()).includes('Bekleme: 3 sa'), 'with how long it waited')
-expect((await paper.locator('.doc-photos figure').count()) === 2 && (await imagesLoaded(paper.locator('.doc-photos'))), 'each step\'s finish photo is shown')
-expect((await page.locator('.paper-head img').evaluate((img) => img.naturalWidth)) > 0, 'on the Aquafelix letterhead')
-await page.getByRole('button', { name: 'PDF olarak kaydet' }).waitFor()
+const ic = await savedPdf(page, join(SHOTS, '103-ic-rapor.pdf'))
+expect(ic.name === `${code} - Kumlu filtre 2 m³ sa - İç rapor.pdf`, `Felix makes the file itself, named after the project: ${ic.name}`)
+expect(/Page size:\s+595\.2\d? x 841\.8\d? pts \(A4\)/.test(ic.info), 'on A4 pages')
+const fontRows = ic.fonts.split('\n').slice(2).filter(Boolean)
+expect(fontRows.length > 0 && fontRows.every((l) => /Inter/.test(l) && /\byes\b/.test(l)), `only the Inter font, inside the file: ${fontRows.map((l) => l.split(/\s+/)[0]).join(', ')}`)
+const icText = ic.text.replace(/\s+/g, ' ')
+expect(icText.includes(code) && icText.includes('Deniz Su A.Ş.') && icText.includes('İÇ RAPOR'), 'the report shows the code, the company and that it is the internal one')
+expect(icText.includes('2 gün geç'), 'planned two days ago and delivered today: 2 days late')
+expect(icText.includes('Ahmet Yılmaz'), 'each step shows who did it')
+expect(icText.includes('Çalışma: 21 sa'), 'work time leaves out the waits')
+expect(icText.includes('Sorun beklemesi: 3 sa') && icText.includes('Onay beklemesi: 3 sa'), 'the problem and approval waits are shown apart')
+expect(icText.includes('Geri gönderen: Selim Ateş') && icText.includes('Not: Kaynak dikişleri temizlenmeli.'), 'who sent the step back, and their note')
+expect(icText.includes('Onaylayan: Selim Ateş'), 'who approved the step')
+expect(icText.includes('Sorun: Malzeme eksik'), 'and the problem')
+expect(/ 2 1 gün 1 1 Adım Toplam çalışma Geri gönderme Sorun /.test(icText), 'the total work time is one day (21 h + 3 h)')
+expect(/Ahmet Yılmaz 1 21 sa 1 1/.test(icText), 'each person\'s steps, time, send-backs and problems')
+expect(icText.includes('Malzeme talebi: Paslanmaz profil 40x40 · 12 boy') && icText.includes('Bekleme: 3 sa'), 'the material request, with how long it waited')
+expect(ic.jpegs === 2, `each step's finish photo is inside the file (${ic.jpegs})`)
+expect(ic.text.includes('Hadımköy') && /Sayfa 1 \/ \d/.test(ic.text) && ic.logos === ic.pages, `on the Aquafelix letterhead, with page numbers, on each of its ${ic.pages} pages`)
 await page.screenshot({ path: `${SHOTS}/103-ic-rapor.png`, fullPage: true })
-const pdfIc = join(SHOTS, '103-ic-rapor.pdf')
-await page.emulateMedia({ media: 'print' })
-await page.pdf({ path: pdfIc, format: 'A4', printBackground: true })
-await page.emulateMedia({ media: 'screen' })
-ok('the internal report saves as a PDF')
+
+// The same file from a phone.
+const emirPhone = await open('emir-phone', PHONE, 'emir', 'emir1234')
+await emirPhone.goto(`${BASE}/projeler/${projectId}/rapor`)
+const icPhone = await savedPdf(emirPhone, join(SHOTS, '103b-ic-rapor-telefon.pdf'))
+expect(withoutDate(icPhone.text) === withoutDate(ic.text) && icPhone.info.match(/Pages:.*/)[0] === ic.info.match(/Pages:.*/)[0], 'a phone saves exactly the same document')
+await emirPhone.screenshot({ path: `${SHOTS}/103c-ic-rapor-telefon.png`, fullPage: true })
 
 // ---- Müşteri raporu: choosing what the customer sees ----
 await page.getByRole('button', { name: 'Müşteri raporu' }).click()
@@ -308,15 +351,14 @@ const choice = page.locator('.report-choice')
 await choice.locator('.pick-row').first().waitFor()
 const choosable = sql(`select count(*) from public.dosyalar where project_id = '${projectId}' and eski_at is null and (step_id is null or mime like 'image/%')`)
 expect(String(await choice.locator('.pick-row').count()) === choosable, `every current finish photo and the certificate can be chosen (${choosable})`)
-expect((await page.locator('.paper .doc-photos').count()) === 0, 'nothing is shown to the customer until it is ticked')
+expect((await savedPdf(page, join(SHOTS, '104-bos.pdf'))).jpegs === 0, 'nothing is shown to the customer until it is ticked')
 const lastPhoto = choice.locator('.pick-row', { hasText: 'Şase imalatı' }).last()
 await lastPhoto.getByRole('switch').click()
 await choice.locator('.pick-row', { hasText: 'Basinc testi sertifikasi.pdf' }).getByRole('switch').click()
-await page.locator('.paper .doc-photos figure').waitFor()
-await page.locator('.paper .doc-files li').waitFor()
-const preview = await page.locator('.paper').innerText()
-expect(!preview.includes('Ahmet') && !preview.includes('Selim'), 'the customer version has no names')
-expect((await imagesLoaded(page.locator('.paper .doc-photos'))), 'the ticked photo shows')
+const secim = await savedPdf(page, join(SHOTS, '104-musteri-raporu.pdf'), (r) => r.jpegs === 1 && r.text.includes('Basinc testi sertifikasi.pdf'))
+ok('the ticked photo and certificate go into the customer version')
+expect(!secim.text.includes('Ahmet') && !secim.text.includes('Selim'), 'the customer version has no names')
+expect(secim.name === `${code} - Kumlu filtre 2 m³ sa - Müşteri raporu.pdf`, `named as the customer version: ${secim.name}`)
 await page.screenshot({ path: `${SHOTS}/104-musteri-raporu-secim.png`, fullPage: true })
 await page.emulateMedia({ colorScheme: 'dark' })
 await page.waitForTimeout(200)
@@ -336,33 +378,29 @@ await customer.goto(BASE)
 await customer.getByRole('link', { name: 'Proje raporu sorgula' }).click()
 await customer.getByLabel('Müşteri kodu').fill(customerCode.toLowerCase().replace(/-/g, ' '))
 await customer.getByRole('button', { name: 'Raporu göster' }).click()
-const cpaper = customer.locator('.paper')
-await cpaper.locator('.doc-step').first().waitFor()
+const cust = await savedPdf(customer, join(SHOTS, '105-musteri-raporu-telefon.pdf'))
 ok('the customer opens the report with the code (written in lower case, with spaces)')
-const ctext = await cpaper.innerText()
-expect(ctext.includes('Yapılan işler') && (await cpaper.locator('.doc-step').count()) === 2, 'it lists the work done')
-expect(!ctext.includes('Ahmet') && !ctext.includes('Selim') && !ctext.includes('Malzeme'), 'with no names and no internal problems')
+const ctext = cust.text.replace(/\s+/g, ' ')
+expect(ctext.includes('Yapılan işler') && ctext.includes('Şase imalatı') && ctext.includes('Paketleme ve sevkiyat'), 'it lists the work done')
+expect(!ctext.includes('Ahmet') && !ctext.includes('Selim') && !ctext.includes('Malzeme') && !ctext.includes('İÇ RAPOR'), 'with no names and no internal problems')
 expect(ctext.includes('Teslim edildi') && ctext.includes('Deniz Su A.Ş.'), 'with the company and the delivery date')
-expect((await cpaper.locator('.doc-photos figure').count()) === 1 && (await imagesLoaded(cpaper.locator('.doc-photos'))), 'the ticked photo shows')
-const certificate = cpaper.locator('.doc-files a')
-expect((await certificate.getAttribute('href')).includes('download='), 'and the certificate downloads')
-await customer.waitForTimeout(300)
+expect(cust.jpegs === 1 && ctext.includes('Basinc testi sertifikasi.pdf'), 'the ticked photo is inside, and the certificate is listed')
+expect(withoutDate(cust.text) === withoutDate(secim.text), 'exactly what the manager saw as the customer version')
+expect(cust.name === `${code} - Kumlu filtre 2 m³ sa - Proje raporu.pdf`, `the customer's file is called ${cust.name}`)
+const certificate = customer.locator('.file-list a', { hasText: 'Basinc testi sertifikasi.pdf' })
+expect((await certificate.getAttribute('href')).includes('download='), 'and the certificate downloads from the page')
 await customer.screenshot({ path: `${SHOTS}/105-musteri-raporu-telefon.png`, fullPage: true })
 
 const desk = await open('customer-desk', { viewport: { width: 1280, height: 900 } })
 await desk.goto(`${BASE}/rapor?kod=${encodeURIComponent(customerCode)}`)
-await desk.locator('.paper .doc-step').first().waitFor()
+const custDesk = await savedPdf(desk, join(SHOTS, '106-musteri-raporu.pdf'))
 ok('a link with the code opens the report directly')
-await imagesLoaded(desk.locator('.paper'))
+expect(withoutDate(custDesk.text) === withoutDate(cust.text), 'a computer saves exactly the same document as the phone')
 await desk.screenshot({ path: `${SHOTS}/106-musteri-raporu.png`, fullPage: true })
-await desk.emulateMedia({ media: 'print' })
-await desk.pdf({ path: join(SHOTS, '106-musteri-raporu.pdf'), format: 'A4', printBackground: true })
-await desk.emulateMedia({ media: 'screen' })
-ok('the customer report saves as a PDF')
 await desk.evaluate(() => localStorage.setItem('felix.lang', 'en'))
 await desk.goto(`${BASE}/rapor?kod=${encodeURIComponent(customerCode)}`)
-await desk.getByRole('heading', { name: 'Work done' }).waitFor()
-ok('in English too')
+const english = await savedPdf(desk, join(SHOTS, '106b-customer-report.pdf'))
+expect(english.text.includes('Work done') && /Page 1 of \d/.test(english.text), 'in English too')
 
 // The unfinished project: only "being prepared".
 const eskiCode = `AF-${yy}-001-${sql(`select anahtar from public.proje_anahtarlari where project_id = '${eskiId}'`)}`
