@@ -193,12 +193,15 @@ SwiftUI's ConcentricRectangle):
   in the Supabase SQL Editor (copy from GitHub, paste, Run). So every migration
   must be safe to run more than once and must also work as one transaction.
   Push the front end so it still works before he has run the new file, and tell
-  him clearly which file to run. He has run 0001 to 0009
-  (0008 also created the Storage bucket and its access rules);
-  0010_bildirimler.sql is new (notifications). Before it runs there is no
-  bell, card or switch (`bildirimReady` in `workshop.tsx`). The Supabase
-  connector can be tried for running a migration; it timed out once, so the
-  fallback is Emir pasting it.
+  him clearly which file to run. 0001 to 0010 have been run
+  (0008 also created the Storage bucket and its access rules; 0010 added
+  notifications, and before it runs there is no bell, card or switch:
+  `bildirimReady` in `workshop.tsx`). The Supabase
+  connector (`apply_migration`) can run a migration itself: its `drop ...`
+  lines need a confirmation the connector cannot show, so it times out. When
+  the objects a file drops do not exist yet (check first), send the file
+  without its `drop ... if exists` lines, as was done for 0010; otherwise Emir
+  pastes it.
   `src/lib/supabase.ts` `fetchProfiles` shows the pattern for working before a
   migration has run (fall back, hide the feature).
 - Data loads in `src/lib/workshop.tsx` (one provider, refreshes every 30 s and
