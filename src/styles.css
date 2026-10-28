@@ -38,6 +38,7 @@
   --selected-ink: #0058b0;
   --scrim: rgba(0, 0, 0, 0.4);
   --contrast-surface: #ffffff;
+  --badge-ink: #ffffff;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
   --shadow-dialog: 0 24px 60px rgba(0, 0, 0, 0.3);
   --r-min: 10px;
@@ -541,8 +542,48 @@ select.input {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.account {
+.top-actions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* The bell: unread alerts as a red count on its shoulder. */
+.bell {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bell-count {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--red);
+  color: var(--badge-ink);
+  box-shadow: 0 0 0 2px var(--bg);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 19px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.account {
   min-height: 44px;
   padding: 0 0.875rem 0 0.625rem;
   border: 0;
@@ -669,6 +710,92 @@ select.input {
   flex-direction: column;
   gap: 0.625rem;
   line-height: 1.45;
+}
+
+/* Bildirimler */
+.alerts {
+  padding: 0 1rem;
+}
+
+.alert-row {
+  width: 100%;
+  min-height: 60px;
+  padding: 0.75rem 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.alert-dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 0.4rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.alert-row.unread .alert-dot {
+  background: var(--accent);
+}
+
+.alert-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+  overflow-wrap: anywhere;
+}
+
+.alert-title {
+  font-weight: 500;
+}
+
+.alert-row.unread .alert-title {
+  font-weight: 650;
+}
+
+.alert-time {
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+
+/* The one-time "allow alerts" card, above the page. */
+.page-banner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.25rem max(1.25rem, env(safe-area-inset-right)) 0 max(1.25rem, env(safe-area-inset-left));
+}
+
+.push-prompt {
+  padding: var(--pad);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.push-prompt > svg {
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.push-prompt p {
+  margin: 0;
+  flex: 1 1 14rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.push-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
 }
 
 /* Ekip */

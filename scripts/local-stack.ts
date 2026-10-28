@@ -41,7 +41,11 @@ export const SERVICE_KEY = sign({ role: 'service_role', exp: far })
 process.env.SUPABASE_URL = `http://127.0.0.1:${PORT}`
 process.env.SUPABASE_SERVICE_ROLE_KEY = SERVICE_KEY
 process.env.FELIX_SETUP_CODE ??= 'kurulum'
+// The tests' stand-in push service (scripts/e2e-push.mjs) has a self-made
+// certificate; accept it here, in this test-only server.
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 const { handleSetup, handleUsers, run } = await import('../api/_lib/core.js')
+const { handleBildirim } = await import('../api/_lib/bildirim.js')
 
 type Json = Record<string, any>
 const send = (res: ServerResponse, status: number, body?: unknown, headers: Record<string, string> = {}) => {
@@ -249,7 +253,9 @@ async function rest(req: IncomingMessage, res: ServerResponse, path: string, que
       sql = `insert into ${table} (${keys.map(ident).join(', ')}) values ${tuples.join(', ')}`
       // upsert(): supabase-js asks for this with a Prefer header and on_conflict.
       const conflict = query.get('on_conflict')
-      if (prefer.includes('resolution=merge-duplicates') && conflict) {
+      if (prefer.includes('resolution=ignore-duplicates') && conflict) {
+        sql += ` on conflict (${conflict.split(',').map((c) => ident(c.trim())).join(', ')}) do nothing`
+      } else if (prefer.includes('resolution=merge-duplicates') && conflict) {
         const target = conflict.split(',').map((c) => ident(c.trim()))
         const rest = keys.filter((k) => !conflict.split(',').includes(k))
         sql += ` on conflict (${target.join(', ')}) do ${rest.length ? `update set ${rest.map((k) => `${ident(k)} = excluded.${ident(k)}`).join(', ')}` : 'nothing'}`
@@ -338,8 +344,9 @@ createServer(async (req, res) => {
     if (url.pathname.startsWith('/auth/v1')) return await auth(req, res, url.pathname.slice(8), url.searchParams)
     if (url.pathname.startsWith('/rest/v1')) return await rest(req, res, url.pathname.slice(8), url.searchParams)
     if (url.pathname.startsWith('/storage/v1')) return await storage(req, res, url.pathname.slice(11), url.searchParams)
-    if (url.pathname === '/api/setup' || url.pathname === '/api/users') {
-      const reply = await run(url.pathname === '/api/setup' ? handleSetup : handleUsers, {
+    const api = { '/api/setup': handleSetup, '/api/users': handleUsers, '/api/bildirim': handleBildirim }[url.pathname]
+    if (api) {
+      const reply = await run(api, {
         method: req.method ?? 'GET',
         body: await readBody(req),
         authorization: req.headers.authorization,

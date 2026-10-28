@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { FileSection } from '../components/Dosyalar'
 import { StatusBadge, StepDialog } from '../components/StepDialog'
 import { Dialog, ErrorNote, Field, Icon, Spinner } from '../components/ui'
@@ -17,6 +17,15 @@ export function ProjeDetay() {
   const [openStep, setOpenStep] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [params, setParams] = useSearchParams()
+  const linked = params.get('adim')
+
+  // An alert opens its step: /projeler/<id>?adim=<step>.
+  useEffect(() => {
+    if (!linked) return
+    setOpenStep(linked)
+    setParams({}, { replace: true })
+  }, [linked, setParams])
 
   const back = (
     <Link to="/projeler" className="back press">
