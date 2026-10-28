@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { ErrorNote, Field, Icon } from '../components/ui'
 import { friendly } from '../lib/errors'
 import { t } from '../lib/i18n'
@@ -86,6 +87,10 @@ export function Login({ notice }: { notice: string | null }) {
             {busy ? t('Giriş yapılıyor…') : t('Giriş yap')}
           </button>
         </form>
+        <Link to="/rapor" className="btn btn-tint btn-big press report-link">
+          <Icon name="doc" size={20} />
+          {t('Proje raporu sorgula')}
+        </Link>
         <div className="foot">
           {t("Hesabınız yok mu veya şifrenizi mi unuttunuz? Genel Müdür veya IT'ye söyleyin, hesapları onlar oluşturur.")}
         </div>

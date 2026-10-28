@@ -80,7 +80,6 @@ expect(await page.getByRole('switch').count() === 0, 'Türler has no approval sw
 await nav(page, 'Projeler')
 await page.getByRole('button', { name: 'Yeni proje' }).click()
 await dialog(page).getByLabel('Proje adı').fill('500 m³/gün RO Ünitesi')
-await dialog(page).getByLabel('Proje kodu').fill('P-2614')
 await dialog(page).getByLabel('Proje türü').selectOption({ label: 'RO Ünitesi' })
 await dialog(page).getByText('Borulama').waitFor()
 expect(await dialog(page).getByRole('switch').count() === 0, 'the new-project form lists the steps without "Onay gerekir" switches')

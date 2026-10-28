@@ -288,6 +288,13 @@ export function ProjectCard({ project, data, lateDays }: { project: Project; dat
         <span className="sub">{progressText(steps)}</span>
         <span className="flags">
           {problems > 0 ? <span className="badge status-problem">{t('{n} sorun', { n: problems })}</span> : null}
+          {data.reportReady && isFinished(steps) ? (
+            project.teslim_at ? (
+              <span className="badge status-done">{t('Teslim edildi')}</span>
+            ) : (
+              <span className="badge status-waiting">{t('Teslim bekliyor')}</span>
+            )
+          ) : null}
           {lateDays ? (
             <span className="badge status-late">{t('{n} gün gecikti', { n: lateDays })}</span>
           ) : late ? (
@@ -335,7 +342,7 @@ function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => vo
     }
     const { data: id, error } = await supabase.rpc('create_project', {
       p_name: name,
-      p_code: code || null,
+      p_code: data.reportReady ? null : code || null,
       p_due_date: due || null,
       p_type_id: typeId || null,
       p_company_id: company,
@@ -395,20 +402,23 @@ function NewProjectDialog({ data, onClose }: { data: Workshop; onClose: () => vo
           </Field>
         ) : null}
         <div className="pair">
-          <Field label={t('Proje kodu')}>
-            {(id) => (
-              <input
-                id={id}
-                className="input"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder={t('İsteğe bağlı')}
-                maxLength={40}
-                autoComplete="off"
-                autoCapitalize="characters"
-              />
-            )}
-          </Field>
+          {/* After 0011 the code is given by itself (AF-26-014). */}
+          {data.reportReady ? null : (
+            <Field label={t('Proje kodu')}>
+              {(id) => (
+                <input
+                  id={id}
+                  className="input"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder={t('İsteğe bağlı')}
+                  maxLength={40}
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                />
+              )}
+            </Field>
+          )}
           <Field label={t('Teslim tarihi')}>
             {(id) => <input id={id} className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} />}
           </Field>

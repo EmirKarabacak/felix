@@ -74,7 +74,7 @@ select pg_temp.expect(
   (select string_agg(name, ',' order by position) from public.project_steps where project_id = :'project_id')
     = 'Malzeme hazırlık,Şase imalatı,Yüzey işlemi,Ekipman montajı,Borulama,Elektrik ve pano,Test,Paketleme ve sevkiyat',
   'steps are copied in the type''s order');
-select pg_temp.fails($$select public.create_project('Other', 'p-1')$$, 'a project code cannot be used twice (case-insensitive)');
+select pg_temp.expect((select code from public.projects where id = :'project_id') ~ '^AF-[0-9]{2}-[0-9]{3}$', 'a project gets its code by itself (0011)');
 select public.create_project('Boş proje') as empty_id \gset
 select pg_temp.expect((select count(*) from public.project_steps where project_id = :'empty_id') = 0, 'a project without a type starts empty');
 select public.add_step(:'empty_id', (select id from public.step_types where name = 'Test')) as added_id \gset

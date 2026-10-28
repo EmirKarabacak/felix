@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { ErrorBoundary, Spinner } from './components/ui'
 import { Shell } from './components/Shell'
 import { useAuth } from './lib/auth'
@@ -17,9 +17,15 @@ import { WorkshopProvider } from './lib/workshop'
 import { Setup } from './pages/Setup'
 import { Ayarlar } from './pages/Ayarlar'
 import { Uzmanliklar } from './pages/Uzmanliklar'
+import { MusteriRaporu } from './pages/MusteriRaporu'
+import { Rapor } from './pages/Rapor'
 
 export function App() {
   const { state } = useAuth()
+  const { pathname } = useLocation()
+
+  // A customer's report: open to everyone, signed in or not.
+  if (pathname === '/rapor') return <MusteriRaporu />
 
   if (!isConfigured) {
     return (
@@ -52,6 +58,7 @@ export function App() {
         <Routes>
           <Route path="/projeler" element={<Projeler />} />
           <Route path="/projeler/:id" element={<ProjeDetay />} />
+          {manages ? <Route path="/projeler/:id/rapor" element={<Rapor />} /> : null}
           <Route path="/ayarlar" element={<Ayarlar />} />
           {/* Genel Müdür and IT hand out work rather than receiving it: Özet instead of İşlerim. */}
           {panel === 'ceo' ? <Route path="/ozet" element={<Ozet />} /> : <Route path="/islerim" element={<Islerim />} />}
