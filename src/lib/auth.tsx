@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import { forgetDevice } from './bildirim'
 import { t } from './i18n'
 import { fetchProfiles, supabase, type Profile } from './supabase'
 
@@ -61,6 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     setNotice(null)
+    // This phone stops getting the person's alerts once they sign out.
+    await forgetDevice()
     await supabase.auth.signOut()
   }, [])
 

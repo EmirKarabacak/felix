@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { useEffect, type ReactNode } from 'react'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useProfile } from '../lib/auth'
 import { t } from '../lib/i18n'
 import type { Panel } from '../lib/supabase'
+import { Bell, PushPrompt } from './Bildirimler'
 import { Icon, type IconName } from './ui'
 
 // Labels are Turkish, shown through t().
@@ -27,6 +28,18 @@ const TABS: Record<Panel, Tab[]> = {
 export function Shell({ children }: { children: ReactNode }) {
   const profile = useProfile()
   const tabs = TABS[profile.panel]
+  const navigate = useNavigate()
+
+  // A phone alert tapped while Felix is already open: go to its step.
+  useEffect(() => {
+    const onWorker = (e: MessageEvent) => {
+      if (e.data?.type !== 'felix-ac' || typeof e.data.url !== 'string') return
+      const url = new URL(e.data.url, window.location.origin)
+      if (url.origin === window.location.origin) navigate(url.pathname + url.search)
+    }
+    navigator.serviceWorker?.addEventListener('message', onWorker)
+    return () => navigator.serviceWorker?.removeEventListener('message', onWorker)
+  }, [navigate])
 
   return (
     <>
@@ -42,13 +55,19 @@ export function Shell({ children }: { children: ReactNode }) {
             </NavLink>
           ))}
         </nav>
-        <Link to="/ayarlar" className="account press" aria-label={`${profile.full_name}: ${t('Ayarlar')}`}>
-          <Icon name="person" size={20} />
-          <span>{profile.full_name}</span>
-        </Link>
+        <div className="top-actions">
+          <Bell />
+          <Link to="/ayarlar" className="account press" aria-label={`${profile.full_name}: ${t('Ayarlar')}`}>
+            <Icon name="person" size={20} />
+            <span>{profile.full_name}</span>
+          </Link>
+        </div>
       </header>
 
-      <main>{children}</main>
+      <main>
+        <PushPrompt />
+        {children}
+      </main>
 
       <nav className="tabbar glass" aria-label={t('Bölümler')}>
         {tabs.map((tab) => (

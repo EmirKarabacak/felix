@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ErrorNote, Field, Icon, Segmented, Switch, type IconName } from '../components/ui'
 import { useAuth, useProfile } from '../lib/auth'
+import { permission, pushChoice, pushSupported, turnOff, turnOn } from '../lib/bildirim'
 import { friendly } from '../lib/errors'
 import { setLang, setTheme, t, useSettings, type Lang, type Theme } from '../lib/i18n'
 import { canManage, rememberMe, rolLabel, supabase } from '../lib/supabase'
@@ -54,6 +55,8 @@ export function Ayarlar() {
       </section>
 
       <Appearance />
+
+      {data?.bildirimReady ? <Alerts /> : null}
 
       {manages ? (
         <section className="stack" aria-label={t('Listeler')}>
@@ -130,6 +133,58 @@ function Appearance() {
           onChange={setTheme}
         />
       </div>
+    </section>
+  )
+}
+
+/**
+ * Phone alerts on this device. The bell lists every alert anyway; this only
+ * decides whether the phone also rings.
+ */
+function Alerts() {
+  const supported = pushSupported()
+  const [on, setOn] = useState(() => supported && pushChoice() === 'on' && permission() === 'granted')
+  const [denied, setDenied] = useState(() => permission() === 'denied')
+  const [error, setError] = useState<string | null>(null)
+
+  const note = !supported
+    ? t("Bu cihaz telefon bildirimi alamıyor. iPhone'da Felix'i ana ekrana ekleyip oradan açın.")
+    : denied
+      ? t('Bu cihazda bildirimlere izin verilmemiş. Telefonun ayarlarından Felix için bildirimlere izin verin.')
+      : t('Yeni iş, onay bekleyen iş, sorun ve taleplerden telefonunuza haber gelir.')
+
+  return (
+    <section className="stack" aria-label={t('Bildirimler')}>
+      <h3>{t('Bildirimler')}</h3>
+      <div className="card rows facts">
+        <label className="fact">
+          <span>
+            {t('Telefon bildirimleri')}
+            <span className="sub block">{note}</span>
+          </span>
+          <Switch
+            checked={on}
+            disabled={!supported || denied}
+            onChange={async (next) => {
+              setError(null)
+              try {
+                if (next) {
+                  const result = await turnOn()
+                  if (result === 'denied') setDenied(true)
+                  setOn(result === 'on')
+                } else {
+                  await turnOff()
+                  setOn(false)
+                }
+              } catch (e) {
+                setError(friendly(e))
+                setOn(false)
+              }
+            }}
+          />
+        </label>
+      </div>
+      <ErrorNote>{error}</ErrorNote>
     </section>
   )
 }

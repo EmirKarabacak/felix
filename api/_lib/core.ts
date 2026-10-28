@@ -20,8 +20,8 @@ const PANELS: Panel[] = ['ceo', 'manager', 'worker']
 const UNVANLAR = ['genel_mudur', 'it']
 const SEVIYELER = ['usta', 'kalfa', 'cirak']
 
-const fail = (status: number, error: string): Reply => ({ status, body: { error } })
-const ok = (body: Record<string, unknown> = {}): Reply => ({ status: 200, body: { ok: true, ...body } })
+export const fail = (status: number, error: string): Reply => ({ status, body: { error } })
+export const ok = (body: Record<string, unknown> = {}): Reply => ({ status: 200, body: { ok: true, ...body } })
 
 export function adminClient(): SupabaseClient {
   const url = baseUrl(process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL)
@@ -30,7 +30,7 @@ export function adminClient(): SupabaseClient {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
 }
 
-function asRecord(body: unknown): Record<string, unknown> {
+export function asRecord(body: unknown): Record<string, unknown> {
   if (typeof body === 'string') {
     try {
       return asRecord(JSON.parse(body))
@@ -103,8 +103,11 @@ async function createPerson(
   return ok({ id })
 }
 
-/** Resolves the caller from their session token and requires an active Genel Müdür or IT. */
-async function requireCeo(db: SupabaseClient, authorization: string | undefined): Promise<string | Reply> {
+/** Resolves the caller from their session token; they must be an active person. */
+export async function requireUser(
+  db: SupabaseClient,
+  authorization: string | undefined,
+): Promise<{ id: string; panel: Panel } | Reply> {
   const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : ''
   if (!token) return fail(401, 'Oturum bulunamadı. Yeniden giriş yapın.')
   const who = await db.auth.getUser(token)
@@ -115,10 +118,16 @@ async function requireCeo(db: SupabaseClient, authorization: string | undefined)
     .eq('id', who.data.user.id)
     .maybeSingle()
   if (profile.error) return fail(500, profile.error.message)
-  if (!profile.data?.active || profile.data.panel !== 'ceo') {
-    return fail(403, 'Bu işlemi yalnızca Genel Müdür veya IT yapabilir.')
-  }
-  return who.data.user.id
+  if (!profile.data?.active) return fail(403, "Bu hesap artık kullanılmıyor. Genel Müdür veya IT'ye söyleyin.")
+  return { id: who.data.user.id, panel: profile.data.panel as Panel }
+}
+
+/** Resolves the caller from their session token and requires an active Genel Müdür or IT. */
+async function requireCeo(db: SupabaseClient, authorization: string | undefined): Promise<string | Reply> {
+  const caller = await requireUser(db, authorization)
+  if ('status' in caller) return caller
+  if (caller.panel !== 'ceo') return fail(403, 'Bu işlemi yalnızca Genel Müdür veya IT yapabilir.')
+  return caller.id
 }
 
 function sameSecret(a: string, b: string): boolean {

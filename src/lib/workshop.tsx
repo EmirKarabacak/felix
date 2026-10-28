@@ -1,4 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import type { BildirimMetinVerisi } from '../../shared/bildirim'
+import { refreshDevice, sendWaiting, setBadge } from './bildirim'
 import { friendly } from './errors'
 import { locale, t } from './i18n'
 import { canManage, fetchProfiles, isMissingColumn, seviyeLabel, supabase, type Bolum, type BolumKod, type DbStage, type Profile, type Seviye } from './supabase'
@@ -99,6 +101,9 @@ export type Dosya = {
   eski_at: string | null
   silindi: boolean
 }
+/** One of my alerts (0010): the bell's list. */
+export type Bildirim = BildirimMetinVerisi & { id: string; created_at: string; read_at: string | null }
+
 export type ProjectTypeStep = { id: string; project_type_id: string; step_type_id: string; position: number }
 
 type Raw = {
@@ -118,6 +123,10 @@ type Raw = {
   ready: boolean
   /** False until 0009 has been run: finishing then needs no photo. */
   photoReady: boolean
+  /** My alerts, newest first. */
+  bildirimler: Bildirim[]
+  /** False until 0010 has been run: the bell and phone alerts are then hidden. */
+  bildirimReady: boolean
   stepTypes: StepType[]
   projectTypes: NamedItem[]
   projectTypeSteps: ProjectTypeStep[]
@@ -152,6 +161,8 @@ export type Workshop = Raw & {
   projectsOf: (companyId: string) => Project[]
   /** Steps of a project type, in order, with the step type's name. */
   typeStepsOf: (projectTypeId: string) => (ProjectTypeStep & { name: string })[]
+  /** How many of my alerts are unread. */
+  unread: number
 }
 
 type WorkshopContextValue = {
@@ -209,6 +220,7 @@ async function load(): Promise<Raw> {
       : none,
   ])
   const steps = stepsLoad.result
+  const bildirimLoad = await loadBildirimler(stepsLoad.photoReady)
   const failed = [projects, steps, assignees, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails, bolumler, uzmanliklar, kisiUzmanliklari, talepler, dosyalar].find((r) => r.error)
   if (failed?.error) throw failed.error
   return {
@@ -224,12 +236,35 @@ async function load(): Promise<Raw> {
     bolumReady: stage >= 7,
     ready,
     photoReady: stepsLoad.photoReady,
+    bildirimler: bildirimLoad.rows,
+    bildirimReady: bildirimLoad.ready,
     stepTypes: (stepTypes.data as unknown as StepType[]).map((t) => ({ ...t, uzmanlik_id: t.uzmanlik_id ?? null })),
     projectTypes: projectTypes.data as NamedItem[],
     projectTypeSteps: projectTypeSteps.data as ProjectTypeStep[],
     companies: companies.data as Company[],
     companyDetails: companyDetails.data as CompanyDetails[],
   }
+}
+
+const isMissingTable = (error: { code?: string; message?: string } | null) =>
+  !!error && (error.code === '42P01' || error.code === 'PGRST205' || /could not find the table|relation .* does not exist/i.test(error.message ?? ''))
+
+/** My alerts. The table comes with 0010; before it, there is no bell. */
+async function loadBildirimler(after0009: boolean): Promise<{ rows: Bildirim[]; ready: boolean }> {
+  if (!after0009) return { rows: [], ready: false }
+  const { data, error } = await supabase
+    .from('bildirimler')
+    .select('id, kind, project_id, step_id, adim, proje, kim, sebep, detay, created_at, read_at')
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (isMissingTable(error)) return { rows: [], ready: false }
+  if (error) throw error
+  return { rows: data as Bildirim[], ready: true }
+}
+
+/** Marks one alert as read, or all of them. */
+export function markRead(id?: string) {
+  return supabase.rpc('bildirim_okundu', id ? { p_id: id } : {})
 }
 
 const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'tr')
@@ -325,6 +360,7 @@ function index(input: Raw): Workshop {
     detailsOf: (id) => details.get(id),
     projectsOf: (id) => raw.projects.filter((p) => p.company_id === id),
     typeStepsOf: (id) => typeSteps.get(id) ?? [],
+    unread: raw.bildirimler.filter((b) => !b.read_at).length,
   }
 }
 
@@ -333,6 +369,7 @@ export function WorkshopProvider({ children }: { children: ReactNode }) {
   const [raw, setRaw] = useState<Raw | null>(null)
   const [error, setError] = useState<string | null>(null)
   const latest = useRef(0)
+  const alerts = useRef(false)
 
   const reload = useCallback(async () => {
     const ticket = ++latest.current
@@ -342,6 +379,12 @@ export function WorkshopProvider({ children }: { children: ReactNode }) {
       if (ticket !== latest.current) return
       setRaw(next)
       setError(null)
+      if (next.bildirimReady && !alerts.current) {
+        // Once per start: keep this phone registered, and send anything left waiting.
+        alerts.current = true
+        void refreshDevice()
+        sendWaiting()
+      }
     } catch (e) {
       if (ticket === latest.current) setError(friendly(e))
     }
@@ -357,9 +400,15 @@ export function WorkshopProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState === 'visible') void reload()
     }
     document.addEventListener('visibilitychange', onVisible)
+    // A phone alert just arrived while Felix is open: show it in the bell now.
+    const onWorker = (e: MessageEvent) => {
+      if (e.data?.type === 'felix-bildirim') void reload()
+    }
+    navigator.serviceWorker?.addEventListener('message', onWorker)
     return () => {
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
+      navigator.serviceWorker?.removeEventListener('message', onWorker)
     }
   }, [reload])
 
@@ -371,6 +420,8 @@ export function WorkshopProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         return friendly(e)
       }
+      // The change may have made alerts for others: send them to their phones.
+      if (alerts.current) sendWaiting()
       await reload()
       return null
     },
@@ -378,6 +429,10 @@ export function WorkshopProvider({ children }: { children: ReactNode }) {
   )
 
   const data = useMemo(() => (raw ? index(raw) : null), [raw])
+  const unread = data?.unread
+  useEffect(() => {
+    if (unread !== undefined && raw?.bildirimReady) setBadge(unread)
+  }, [unread, raw?.bildirimReady])
   const value = useMemo(() => ({ data, error, reload, change }), [data, error, reload, change])
   return <WorkshopContext.Provider value={value}>{children}</WorkshopContext.Provider>
 }
