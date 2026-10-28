@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { MusteriRaporu } from '../../shared/rapor'
-import { IcRapor, MusteriRaporuBelgesi } from '../components/Rapor'
+import { PdfKaydet, PdfOnizleme, useRaporPdf } from '../components/Rapor'
 import { Photo } from '../components/StepHistory'
 import { ErrorNote, Icon, Spinner, Switch } from '../components/ui'
 import { callApi } from '../lib/api'
 import { friendly } from '../lib/errors'
 import { t } from '../lib/i18n'
+import { icRaporuBelgesi, musteriRaporuBelgesi } from '../lib/pdf'
 import { projeRaporu, type Olay } from '../lib/rapor'
 import { dosyaMusteriye, fetchProjectEvents, useWorkshop, type Dosya, type Project, type Workshop } from '../lib/workshop'
 import { CopyButton } from './ProjeDetay'
@@ -20,18 +21,8 @@ export function Rapor() {
   const [gorunum, setGorunum] = useState<Gorunum>('ic')
   const project = data?.project(id)
 
-  // The saved PDF is named after the project.
-  useEffect(() => {
-    if (!project) return
-    const before = document.title
-    document.title = [project.code, project.name, t('Proje raporu')].filter(Boolean).join(' - ')
-    return () => {
-      document.title = before
-    }
-  }, [project])
-
   const back = (
-    <Link to={`/projeler/${id}`} className="back press no-print">
+    <Link to={`/projeler/${id}`} className="back press">
       <Icon name="back" size={20} />
       {project?.name ?? t('Projeler')}
     </Link>
@@ -53,29 +44,25 @@ export function Rapor() {
     )
   }
 
+  const secim = (
+    <div className="segmented narrow" role="group" aria-label={t('Rapor')}>
+      <button type="button" className="press" aria-pressed={gorunum === 'ic'} onClick={() => setGorunum('ic')}>
+        {t('İç rapor')}
+      </button>
+      <button type="button" className="press" aria-pressed={gorunum === 'musteri'} onClick={() => setGorunum('musteri')}>
+        {t('Müşteri raporu')}
+      </button>
+    </div>
+  )
   return (
     <div className="page report-page">
       {back}
-      <div className="report-bar no-print">
-        <div className="segmented narrow" role="group" aria-label={t('Rapor')}>
-          <button type="button" className="press" aria-pressed={gorunum === 'ic'} onClick={() => setGorunum('ic')}>
-            {t('İç rapor')}
-          </button>
-          <button type="button" className="press" aria-pressed={gorunum === 'musteri'} onClick={() => setGorunum('musteri')}>
-            {t('Müşteri raporu')}
-          </button>
-        </div>
-        <button type="button" className="btn btn-primary press" onClick={() => window.print()}>
-          <Icon name="download" size={18} />
-          {t('PDF olarak kaydet')}
-        </button>
-      </div>
-      {gorunum === 'ic' ? <IcRaporu project={project} data={data} /> : <MusteriTarafi project={project} data={data} />}
+      {gorunum === 'ic' ? <IcRaporu project={project} data={data} secim={secim} /> : <MusteriTarafi project={project} data={data} secim={secim} />}
     </div>
   )
 }
 
-function IcRaporu({ project, data }: { project: Project; data: Workshop }) {
+function IcRaporu({ project, data, secim }: { project: Project; data: Workshop; secim: ReactNode }) {
   const [olaylar, setOlaylar] = useState<Olay[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Read again when a step of this project changes.
@@ -94,14 +81,21 @@ function IcRaporu({ project, data }: { project: Project; data: Workshop }) {
       alive = false
     }
   }, [project.id, data.photoReady, changed])
-  const rapor = useMemo(() => (olaylar ? projeRaporu(data, project, olaylar) : null), [data, project, olaylar])
-  if (error) return <ErrorNote>{error}</ErrorNote>
-  if (!rapor) return <Spinner />
-  return <IcRapor rapor={rapor} data={data} />
+  const belge = useMemo(() => (olaylar ? icRaporuBelgesi(projeRaporu(data, project, olaylar), data) : null), [data, project, olaylar])
+  const pdf = useRaporPdf(belge)
+  return (
+    <>
+      <div className="report-bar">
+        {secim}
+        <PdfKaydet pdf={pdf} />
+      </div>
+      {error ? <ErrorNote>{error}</ErrorNote> : <PdfOnizleme pdf={pdf} />}
+    </>
+  )
 }
 
 /** The customer's version as they will see it, with the choice of photos and files above it. */
-function MusteriTarafi({ project, data }: { project: Project; data: Workshop }) {
+function MusteriTarafi({ project, data, secim }: { project: Project; data: Workshop; secim: ReactNode }) {
   const kod = data.musteriKodu(project.id)
   const [rapor, setRapor] = useState<MusteriRaporu | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -128,10 +122,16 @@ function MusteriTarafi({ project, data }: { project: Project; data: Workshop }) 
       alive = false
     }
   }, [kod, ticks, done, project.teslim_at])
+  const belge = useMemo(() => (rapor?.hazir ? musteriRaporuBelgesi(rapor, t('Müşteri raporu')) : null), [rapor])
+  const pdf = useRaporPdf(belge)
 
   return (
     <>
-      <section className="card stack report-choice no-print" aria-label={t('Müşteriye gösterilecekler')}>
+      <div className="report-bar">
+        {secim}
+        {rapor?.hazir ? <PdfKaydet pdf={pdf} /> : null}
+      </div>
+      <section className="card stack report-choice" aria-label={t('Müşteriye gösterilecekler')}>
         {kod ? (
           <div className="code-row">
             <span>
@@ -148,7 +148,7 @@ function MusteriTarafi({ project, data }: { project: Project; data: Workshop }) 
       {!rapor ? (
         error ? null : <Spinner />
       ) : rapor.hazir ? (
-        <MusteriRaporuBelgesi rapor={rapor} />
+        <PdfOnizleme pdf={pdf} />
       ) : (
         <div className="card empty">{t('Bütün adımlar bitince müşteri raporu hazır olur. O zamana kadar müşteri "Projeniz hazırlanıyor" yazısını görür.')}</div>
       )}

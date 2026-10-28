@@ -16,6 +16,10 @@ export type AdimRaporu = {
   bitti: string | null
   /** When a manager approved it, if it needed approval. */
   onaylandi: string | null
+  /** Who approved it (the last approval). */
+  onaylayan: Profile | undefined
+  /** Each time it was sent back: who, when and the note they wrote. */
+  geriGondermeler: { kim: Profile | undefined; at: string; not: string | null }[]
   /** Time the step was being worked on, without problem or approval waits. */
   calisma: number
   sorunBekleme: number
@@ -59,6 +63,8 @@ function adimRaporu(data: Workshop, step: Step, olaylar: Olay[]): AdimRaporu {
     basladi: null,
     bitti: step.finished_at,
     onaylandi: null,
+    onaylayan: undefined,
+    geriGondermeler: [],
     calisma: 0,
     sorunBekleme: 0,
     onayBekleme: 0,
@@ -81,7 +87,10 @@ function adimRaporu(data: Workshop, step: Step, olaylar: Olay[]): AdimRaporu {
       case 'reopened':
         close(at)
         if (e.kind === 'started' && !r.basladi) r.basladi = e.created_at
-        if (e.kind === 'rejected') r.geriGonderme++
+        if (e.kind === 'rejected') {
+          r.geriGonderme++
+          r.geriGondermeler.push({ kim: e.actor_id ? data.person(e.actor_id) : undefined, at: e.created_at, not: e.detail })
+        }
         state = 'active'
         since = at
         break
@@ -99,7 +108,10 @@ function adimRaporu(data: Workshop, step: Step, olaylar: Olay[]): AdimRaporu {
       case 'finished':
       case 'approved':
         close(at)
-        if (e.kind === 'approved') r.onaylandi = e.created_at
+        if (e.kind === 'approved') {
+          r.onaylandi = e.created_at
+          r.onaylayan = e.actor_id ? data.person(e.actor_id) : undefined
+        }
         state = 'done'
         break
       case 'reset':
@@ -113,13 +125,24 @@ function adimRaporu(data: Workshop, step: Step, olaylar: Olay[]): AdimRaporu {
   return r
 }
 
-/** Whole calendar days from one stored date or moment to another (local time). */
+/**
+ * Reports show Istanbul time on every device, so the same report reads the
+ * same wherever it is opened. A plain date (2026-10-24) has no time of day
+ * and is shown as it is.
+ */
+const SAAT_DILIMI = 'Europe/Istanbul'
+const gunMu = (value: string) => value.length <= 10
+
+/** The calendar day of a stored date or moment, in Istanbul, as a UTC midnight. */
+function gun(value: string): number {
+  if (gunMu(value)) return Date.parse(`${value}T00:00:00Z`)
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: SAAT_DILIMI, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
+  return Date.parse(`${parts}T00:00:00Z`)
+}
+
+/** Whole calendar days from one stored date or moment to another. */
 function gunFarki(from: string, to: string): number {
-  const day = (v: string) => {
-    const d = v.length <= 10 ? new Date(`${v}T00:00:00`) : new Date(v)
-    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
-  }
-  return Math.round((day(to) - day(from)) / 86_400_000)
+  return Math.round((gun(to) - gun(from)) / 86_400_000)
 }
 
 export function projeRaporu(data: Workshop, project: Project, olaylar: Olay[]): ProjeRaporu {
@@ -182,8 +205,9 @@ export function sureText(milliseconds: number): string {
 /** "12 Eki 2026": a report is kept for years, so dates always carry the year. */
 export function tarihText(value: string | null): string {
   if (!value) return ''
-  const date = value.length <= 10 ? new Date(`${value}T00:00:00`) : new Date(value)
-  return new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short', year: 'numeric' }).format(date)
+  return new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short', year: 'numeric', timeZone: gunMu(value) ? 'UTC' : SAAT_DILIMI }).format(
+    new Date(gunMu(value) ? `${value}T00:00:00Z` : value),
+  )
 }
 
 /** "12 Eki 2026 09:40" */
@@ -195,6 +219,7 @@ export function anText(value: string | null): string {
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: SAAT_DILIMI,
   }).format(new Date(value))
 }
 

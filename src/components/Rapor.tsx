@@ -1,302 +1,158 @@
-import type { ReactNode } from 'react'
-import type { MusteriRaporu } from '../../shared/rapor'
-import { formatSize } from '../lib/dosyalar'
+import { useEffect, useRef, useState } from 'react'
+import { friendly } from '../lib/errors'
 import { t } from '../lib/i18n'
-import { anText, gecikmeText, sureText, tarihText, type ProjeRaporu } from '../lib/rapor'
-import { PROBLEM_REASONS, TALEP_STATUS_LABEL, type Workshop } from '../lib/workshop'
-import { Photo } from './StepHistory'
-import { Icon } from './ui'
+import { belgeAnahtari, pdfOlustur, type PdfBelge } from '../lib/pdf'
+import { ErrorNote, Icon, Spinner } from './ui'
 
-/** The bottom line of the Aquafelix letterhead, as printed on it. */
-const ANTET_ADRES =
-  'Atatürk Sanayi Bölgesi Ömerli Mah. Hakkı İleri Cad. 76/A Hadımköy-İST · Tel: 0212 771 58 00 (2 Hat) · Faks: 0212 771 57 76' // i18n-ok
+export type RaporPdf = { blob: Blob | null; dosyaAdi: string; error: string | null }
 
 /**
- * A page on the Aquafelix letterhead: the logo at the top, the address at the
- * bottom. On paper (or PDF) both repeat on every page; the empty first and
- * last rows of the table keep the text clear of them.
+ * The report's PDF file, made by Felix from what the report says, and made
+ * again only when that changes.
  */
-export function Antetli({ children }: { children: ReactNode }) {
+export function useRaporPdf(belge: PdfBelge | null): RaporPdf {
+  const [blob, setBlob] = useState<Blob | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const anahtar = belge ? belgeAnahtari(belge) : null
+  const son = useRef(belge)
+  son.current = belge
+  useEffect(() => {
+    if (!anahtar || !son.current) return
+    let alive = true
+    setError(null)
+    setBlob(null)
+    pdfOlustur(son.current)
+      .then((b) => {
+        if (alive) setBlob(b)
+      })
+      .catch((e) => {
+        if (alive) setError(friendly(e))
+      })
+    return () => {
+      alive = false
+    }
+  }, [anahtar])
+  return { blob: anahtar ? blob : null, dosyaAdi: belge?.dosyaAdi ?? 'rapor.pdf', error }
+}
+
+/**
+ * Saves the file. On a phone or tablet it opens the share sheet (on an iPhone:
+ * "Dosyalar'a Kaydet", Mail, WhatsApp...), which also works when Felix runs
+ * from the home screen; on a computer it downloads.
+ */
+async function kaydet(blob: Blob, dosyaAdi: string) {
+  const file = new File([blob], dosyaAdi, { type: 'application/pdf' })
+  const touch = window.matchMedia?.('(pointer: coarse)').matches
+  if (touch && navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: dosyaAdi.replace(/\.pdf$/, '') })
+      return
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+    }
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = dosyaAdi
+  document.body.append(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+export function PdfKaydet({ pdf }: { pdf: RaporPdf }) {
   return (
-    <article className="paper">
-      <header className="paper-head">
-        <img src="/aquafelix-logo.png" alt="Aquafelix" width={273} height={52} />
-      </header>
-      <table className="paper-frame">
-        <thead>
-          <tr>
-            <td>
-              <div className="paper-head-space" />
-            </td>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>
-              <div className="paper-body">{children}</div>
-            </td>
-          </tr>
-        </tbody>
-        <tfoot>
-          <tr>
-            <td>
-              <div className="paper-foot-space" />
-            </td>
-          </tr>
-        </tfoot>
-      </table>
-      <footer className="paper-foot">{ANTET_ADRES}</footer>
-    </article>
+    <button type="button" className="btn btn-primary press" disabled={!pdf.blob} onClick={() => pdf.blob && void kaydet(pdf.blob, pdf.dosyaAdi)}>
+      <Icon name="download" size={18} />
+      {pdf.blob ? t('PDF olarak kaydet') : t('PDF hazırlanıyor…')}
+    </button>
   )
 }
 
-function Bilgi({ label, children }: { label: string; children: ReactNode }) {
-  if (children === null || children === undefined || children === '') return null
-  return (
-    <div className="doc-fact">
-      <dt>{label}</dt>
-      <dd>{children}</dd>
-    </div>
+type PdfJs = typeof import('pdfjs-dist/legacy/build/pdf.mjs')
+let pdfjsYukleniyor: Promise<PdfJs> | null = null
+
+/** pdf.js draws the pages on screen; loaded the first time a report is opened. */
+function pdfJs(): Promise<PdfJs> {
+  pdfjsYukleniyor ??= Promise.all([import('pdfjs-dist/legacy/build/pdf.mjs'), import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url')]).then(
+    ([lib, worker]) => {
+      lib.GlobalWorkerOptions.workerSrc = worker.default
+      return lib
+    },
   )
+  return pdfjsYukleniyor.catch((e) => {
+    pdfjsYukleniyor = null
+    throw e
+  })
 }
 
-/** A problem as stored ("Malzeme eksik: note"): the reason translated, the note as typed. */
-function sorunText(detail: string): string {
-  const [reason, ...rest] = detail.split(': ')
-  return PROBLEM_REASONS.includes(reason) ? [t(reason), ...rest].join(': ') : detail
-}
+/**
+ * The A4 pages of the file itself, one under the other, so what is on screen
+ * is exactly what is saved. Pages are drawn off screen and swapped in at once,
+ * so a new version does not flicker.
+ */
+export function PdfOnizleme({ pdf }: { pdf: RaporPdf }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+  const [drawn, setDrawn] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-/** İç rapor: everything Felix recorded, for Genel Müdür, IT and Bölüm Sorumluları. */
-export function IcRapor({ rapor, data }: { rapor: ProjeRaporu; data: Workshop }) {
-  const p = rapor.project
-  const company = data.company(p.company_id)
-  const type = data.projectTypes.find((ty) => ty.id === p.project_type_id)
-  const photos = rapor.adimlar.filter((a) => a.foto)
+  useEffect(() => {
+    const el = box.current
+    if (!el) return
+    const measure = () => setWidth((w) => (Math.abs(w - el.clientWidth) > 24 ? el.clientWidth : w))
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const el = box.current
+    if (!pdf.blob || !el || !width) return
+    let alive = true
+    void (async () => {
+      try {
+        const lib = await pdfJs()
+        const task = lib.getDocument({ data: new Uint8Array(await pdf.blob!.arrayBuffer()) })
+        const doc = await task.promise
+        const ratio = Math.min(window.devicePixelRatio || 1, 2)
+        const pages: HTMLCanvasElement[] = []
+        for (let n = 1; n <= doc.numPages; n++) {
+          const page = await doc.getPage(n)
+          const base = page.getViewport({ scale: 1 })
+          const viewport = page.getViewport({ scale: (width / base.width) * ratio })
+          const canvas = document.createElement('canvas')
+          canvas.width = Math.floor(viewport.width)
+          canvas.height = Math.floor(viewport.height)
+          canvas.className = 'pdf-page'
+          canvas.setAttribute('role', 'img')
+          canvas.setAttribute('aria-label', t('Sayfa {page} / {total}', { page: n, total: doc.numPages }))
+          await page.render({ canvas, viewport }).promise
+          if (!alive) return
+          pages.push(canvas)
+        }
+        void task.destroy()
+        if (!alive) return
+        el.replaceChildren(...pages)
+        setDrawn(true)
+        setError(null)
+      } catch (e) {
+        if (alive) setError(friendly(e))
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [pdf.blob, width])
+
+  const message = pdf.error ?? error
   return (
-    <Antetli>
-      <div className="doc-title">
-        <h1>{t('Proje raporu')}</h1>
-        <span className="doc-kind">{t('İç rapor')}</span>
-      </div>
-      <dl className="doc-facts">
-        <Bilgi label={t('Proje kodu')}>{p.code}</Bilgi>
-        <Bilgi label={t('Proje')}>{p.name}</Bilgi>
-        <Bilgi label={t('Firma')}>{company?.name}</Bilgi>
-        <Bilgi label={t('Proje türü')}>{type?.name}</Bilgi>
-        <Bilgi label={t('Açıldı')}>{tarihText(p.created_at)}</Bilgi>
-        <Bilgi label={t('Planlanan teslim')}>{tarihText(p.due_date)}</Bilgi>
-        <Bilgi label={t('Bütün adımlar bitti')}>{tarihText(rapor.tamamlandi)}</Bilgi>
-        <Bilgi label={t('Teslim edildi')}>{p.teslim_at ? tarihText(p.teslim_at) : rapor.tamamlandi ? t('Henüz teslim edilmedi') : null}</Bilgi>
-        <Bilgi label={t('Teslim durumu')}>{rapor.gecikme === null ? null : gecikmeText(rapor.gecikme)}</Bilgi>
-      </dl>
-
-      <div className="doc-totals">
-        <div>
-          <strong>{rapor.adimlar.length}</strong>
-          <span>{t('Adım')}</span>
-        </div>
-        <div>
-          <strong>{sureText(rapor.toplamCalisma)}</strong>
-          <span>{t('Toplam çalışma')}</span>
-        </div>
-        <div>
-          <strong>{rapor.toplamGeriGonderme}</strong>
-          <span>{t('Geri gönderme')}</span>
-        </div>
-        <div>
-          <strong>{rapor.toplamSorun}</strong>
-          <span>{t('Sorun')}</span>
-        </div>
-      </div>
-
-      <h2>{t('Adımlar')}</h2>
-      <ol className="doc-steps">
-        {rapor.adimlar.map((a, i) => (
-          <li key={a.step.id} className="doc-step">
-            <div className="doc-step-head">
-              <span className="doc-no">{i + 1}</span>
-              <strong>{a.step.name}</strong>
-              <span className="doc-who">{a.kisiler.map((k) => k.full_name).join(', ') || t('Atanmadı')}</span>
-            </div>
-            <div className="doc-step-facts">
-              {[
-                a.basladi ? t('Başladı: {time}', { time: anText(a.basladi) }) : null,
-                a.bitti ? t('Bitti: {time}', { time: anText(a.bitti) }) : t('Bitmedi'),
-                a.onaylandi ? t('Onaylandı: {time}', { time: anText(a.onaylandi) }) : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </div>
-            <div className="doc-step-facts">
-              {[
-                a.calisma ? t('Çalışma: {time}', { time: sureText(a.calisma) }) : null,
-                a.sorunBekleme ? t('Sorun beklemesi: {time}', { time: sureText(a.sorunBekleme) }) : null,
-                a.onayBekleme ? t('Onay beklemesi: {time}', { time: sureText(a.onayBekleme) }) : null,
-                a.geriGonderme ? t('{n} kez geri gönderildi', { n: a.geriGonderme }) : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </div>
-            {a.sorunlar.map((s, j) => (
-              <div key={j} className="doc-step-problem">
-                {t('Sorun: {text}', { text: sorunText(s.neden) })} · {anText(s.at)}
-              </div>
-            ))}
-          </li>
-        ))}
-      </ol>
-
-      {rapor.kisiler.length ? (
-        <>
-          <h2>{t('Kişiler')}</h2>
-          <table className="doc-table">
-            <thead>
-              <tr>
-                <th>{t('Kişi')}</th>
-                <th>{t('Adım')}</th>
-                <th>{t('Çalışma')}</th>
-                <th>{t('Geri gönderme')}</th>
-                <th>{t('Bildirdiği sorun')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rapor.kisiler.map((k) => (
-                <tr key={k.kisi.id}>
-                  <td>{k.kisi.full_name}</td>
-                  <td>{k.adim}</td>
-                  <td>{k.calisma ? sureText(k.calisma) : '–'}</td>
-                  <td>{k.geriGonderme}</td>
-                  <td>{k.sorun}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      ) : null}
-
-      {rapor.talepler.length ? (
-        <>
-          <h2>{t('Talepler')}</h2>
-          <ul className="doc-list">
-            {rapor.talepler.map((tl) => {
-              const step = data.steps.find((s) => s.id === tl.step_id)
-              const what =
-                tl.kind === 'malzeme'
-                  ? [tl.material, tl.quantity].filter(Boolean).join(' · ')
-                  : tl.note || t('Çizim hatalı')
-              return (
-                <li key={tl.id}>
-                  <strong>
-                    {tl.kind === 'malzeme' ? t('Malzeme talebi') : t('Çizim talebi')}: {what}
-                  </strong>
-                  <span>
-                    {[
-                      step?.name,
-                      t('Açıldı: {time}', { time: anText(tl.created_at) }),
-                      tl.closed_at
-                        ? t('{status}: {time}', { status: t(TALEP_STATUS_LABEL[tl.status]), time: anText(tl.closed_at) })
-                        : t(TALEP_STATUS_LABEL[tl.status]),
-                      tl.closed_at ? t('Bekleme: {time}', { time: sureText(new Date(tl.closed_at).getTime() - new Date(tl.created_at).getTime()) }) : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        </>
-      ) : null}
-
-      {photos.length ? (
-        <>
-          <h2>{t('Bitiş fotoğrafları')}</h2>
-          <div className="doc-photos">
-            {photos.map((a) => (
-              <figure key={a.step.id}>
-                <Photo file={a.foto!} />
-                <figcaption>
-                  {a.step.name}
-                  {a.bitti ? ` · ${tarihText(a.bitti)}` : ''}
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        </>
-      ) : null}
-
-      <p className="doc-note">
-        {t('Süreler takvim süresidir; geceler ve hafta sonları dahildir. Sorun ve onay beklemeleri çalışmaya sayılmaz. Bir adıma atanan herkes o adımı yapmış sayılır.')}
-      </p>
-      <p className="doc-note">{t('Rapor tarihi: {date}', { date: anText(new Date().toISOString()) })}</p>
-    </Antetli>
-  )
-}
-
-/** Müşteri raporu: what the customer sees. No names, only the ticked photos and files. */
-export function MusteriRaporuBelgesi({ rapor }: { rapor: Extract<MusteriRaporu, { hazir: true }> }) {
-  const photos = rapor.dosyalar.filter((d) => d.foto)
-  const files = rapor.dosyalar.filter((d) => !d.foto)
-  return (
-    <Antetli>
-      <div className="doc-title">
-        <h1>{t('Proje raporu')}</h1>
-      </div>
-      <dl className="doc-facts">
-        <Bilgi label={t('Proje kodu')}>{rapor.kod}</Bilgi>
-        <Bilgi label={t('Proje')}>{rapor.ad}</Bilgi>
-        <Bilgi label={t('Firma')}>{rapor.firma}</Bilgi>
-        <Bilgi label={t('Tamamlandı')}>{tarihText(rapor.tamamlandi)}</Bilgi>
-        <Bilgi label={t('Teslim edildi')}>{tarihText(rapor.teslim)}</Bilgi>
-      </dl>
-
-      <h2>{t('Yapılan işler')}</h2>
-      <ol className="doc-steps doc-steps-simple">
-        {rapor.adimlar.map((a, i) => (
-          <li key={i} className="doc-step">
-            <div className="doc-step-head">
-              <span className="doc-no">{i + 1}</span>
-              <strong>{a.ad}</strong>
-              <span className="doc-who">{tarihText(a.bitti)}</span>
-            </div>
-          </li>
-        ))}
-      </ol>
-
-      {photos.length ? (
-        <>
-          <h2>{t('Fotoğraflar')}</h2>
-          <div className="doc-photos">
-            {photos.map((d) => (
-              <figure key={d.id}>
-                <a className="photo photo-large" href={d.url} target="_blank" rel="noreferrer">
-                  <img src={d.url} alt={d.adim ?? d.ad} />
-                </a>
-                {d.adim ? <figcaption>{d.adim}</figcaption> : null}
-              </figure>
-            ))}
-          </div>
-        </>
-      ) : null}
-
-      {files.length ? (
-        <>
-          <h2>{t('Belgeler')}</h2>
-          <ul className="doc-list doc-files">
-            {files.map((d) => (
-              <li key={d.id}>
-                <a href={d.indir} className="press">
-                  <Icon name="doc" size={20} />
-                  <strong>{d.ad}</strong>
-                  <span>{formatSize(d.boyut)}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-
-      <p className="doc-note">{t('Rapor tarihi: {date}', { date: anText(new Date().toISOString()) })}</p>
-    </Antetli>
+    <>
+      <ErrorNote>{message}</ErrorNote>
+      {!drawn && !message ? <Spinner /> : null}
+      <div ref={box} className="pdf-pages" role="document" aria-label={t('Rapor önizlemesi')} aria-busy={!drawn} />
+    </>
   )
 }
