@@ -177,11 +177,14 @@ const WorkshopContext = createContext<WorkshopContextValue | null>(null)
 
 const REFRESH_MS = 30_000
 
+/** Which database updates have run, as found by the last load. It only ever goes up. */
+let knownStage: DbStage | null = null
+
 async function load(): Promise<Raw> {
-  // People first: which columns they have tells which database updates have run.
-  const people = await fetchProfiles()
-  if (people.error) throw people.error
-  const stage: DbStage = people.stage
+  // Which columns people have tells which database updates have run. The
+  // first load waits for that; later ones already know and ask for everything at once.
+  const peopleLoad = fetchProfiles()
+  const stage: DbStage = knownStage ?? (await peopleLoad).stage
   const ready = stage >= 8
   const none = Promise.resolve({ data: [], error: null })
   const STEP_COLUMNS =
@@ -194,7 +197,7 @@ async function load(): Promise<Raw> {
     if (!isMissingColumn(full.error)) return { result: full, photoReady: true }
     return { result: await stepsQuery(STEP_COLUMNS), photoReady: false }
   }
-  const [projects, stepsLoad, assignees, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails, bolumler, uzmanliklar, kisiUzmanliklari, talepler, dosyalar] = await Promise.all([
+  const [projects, stepsLoad, assignees, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails, bolumler, uzmanliklar, kisiUzmanliklari, talepler, dosyalar, bildirimLoad] = await Promise.all([
     supabase.from('projects').select('id, code, name, due_date, project_type_id, company_id, created_at').order('created_at'),
     loadSteps(),
     supabase.from('step_assignees').select('step_id, user_id'),
@@ -218,9 +221,13 @@ async function load(): Promise<Raw> {
           .select('id, project_id, step_id, ana, name, storage_path, size, mime, uploaded_by, created_at, eski_at, silindi')
           .order('created_at')
       : none,
+    // Alongside the rest, not after it: one more wait would slow every screen.
+    loadBildirimler(ready),
   ])
+  const people = await peopleLoad
+  if (people.error) throw people.error
+  knownStage = people.stage
   const steps = stepsLoad.result
-  const bildirimLoad = await loadBildirimler(stepsLoad.photoReady)
   const failed = [projects, steps, assignees, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails, bolumler, uzmanliklar, kisiUzmanliklari, talepler, dosyalar].find((r) => r.error)
   if (failed?.error) throw failed.error
   return {
@@ -250,8 +257,8 @@ const isMissingTable = (error: { code?: string; message?: string } | null) =>
   !!error && (error.code === '42P01' || error.code === 'PGRST205' || /could not find the table|relation .* does not exist/i.test(error.message ?? ''))
 
 /** My alerts. The table comes with 0010; before it, there is no bell. */
-async function loadBildirimler(after0009: boolean): Promise<{ rows: Bildirim[]; ready: boolean }> {
-  if (!after0009) return { rows: [], ready: false }
+async function loadBildirimler(after0008: boolean): Promise<{ rows: Bildirim[]; ready: boolean }> {
+  if (!after0008) return { rows: [], ready: false }
   const { data, error } = await supabase
     .from('bildirimler')
     .select('id, kind, project_id, step_id, adim, proje, kim, sebep, detay, created_at, read_at')
