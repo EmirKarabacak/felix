@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { BildirimMetinVerisi } from '../../shared/bildirim'
+import { musteriKodu } from '../../shared/rapor'
 import { refreshDevice, sendWaiting, setBadge } from './bildirim'
 import { friendly } from './errors'
 import { locale, t } from './i18n'
@@ -15,6 +16,8 @@ export type Project = {
   project_type_id: string | null
   company_id: string | null
   created_at: string
+  /** When the product left the factory: "Projeyi teslim et" (0011). */
+  teslim_at: string | null
 }
 
 export type Step = {
@@ -100,6 +103,8 @@ export type Dosya = {
   /** Set once the file is in Eski sürümler (replaced or deleted). */
   eski_at: string | null
   silindi: boolean
+  /** Ticked for the customer's report (0011). */
+  musteriye: boolean
 }
 /** One of my alerts (0010): the bell's list. */
 export type Bildirim = BildirimMetinVerisi & { id: string; created_at: string; read_at: string | null }
@@ -127,6 +132,10 @@ type Raw = {
   bildirimler: Bildirim[]
   /** False until 0010 has been run: the bell and phone alerts are then hidden. */
   bildirimReady: boolean
+  /** Customer keys, one per project. Empty for Personel. */
+  anahtarlar: { project_id: string; anahtar: string }[]
+  /** False until 0011 has been run: codes are then typed, and there is no report or delivery. */
+  reportReady: boolean
   stepTypes: StepType[]
   projectTypes: NamedItem[]
   projectTypeSteps: ProjectTypeStep[]
@@ -163,6 +172,8 @@ export type Workshop = Raw & {
   typeStepsOf: (projectTypeId: string) => (ProjectTypeStep & { name: string })[]
   /** How many of my alerts are unread. */
   unread: number
+  /** The code a customer types to see the report (AF-26-014-K7PX); undefined for Personel. */
+  musteriKodu: (projectId: string) => string | undefined
 }
 
 type WorkshopContextValue = {
@@ -197,8 +208,8 @@ async function load(): Promise<Raw> {
     if (!isMissingColumn(full.error)) return { result: full, photoReady: true }
     return { result: await stepsQuery(STEP_COLUMNS), photoReady: false }
   }
-  const [projects, stepsLoad, assignees, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails, bolumler, uzmanliklar, kisiUzmanliklari, talepler, dosyalar, bildirimLoad] = await Promise.all([
-    supabase.from('projects').select('id, code, name, due_date, project_type_id, company_id, created_at').order('created_at'),
+  const [projectsLoad, stepsLoad, assignees, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails, bolumler, uzmanliklar, kisiUzmanliklari, talepler, dosyalar, bildirimLoad, anahtarlar] = await Promise.all([
+    loadProjects(),
     loadSteps(),
     supabase.from('step_assignees').select('step_id, user_id'),
     supabase.from('step_types').select(ready ? 'id, name, uzmanlik_id' : 'id, name').order('name'),
@@ -215,23 +226,20 @@ async function load(): Promise<Raw> {
           .select('id, project_id, step_id, kind, material, quantity, note, status, created_by, created_at, handler_id, handled_at, ordered_at, closed_at, closed_by')
           .order('created_at')
       : none,
-    ready
-      ? supabase
-          .from('dosyalar')
-          .select('id, project_id, step_id, ana, name, storage_path, size, mime, uploaded_by, created_at, eski_at, silindi')
-          .order('created_at')
-      : none,
+    ready ? loadDosyalar() : none,
     // Alongside the rest, not after it: one more wait would slow every screen.
     loadBildirimler(ready),
+    ready ? loadAnahtarlar() : Promise.resolve([]),
   ])
   const people = await peopleLoad
   if (people.error) throw people.error
   knownStage = people.stage
   const steps = stepsLoad.result
+  const projects = projectsLoad.result
   const failed = [projects, steps, assignees, stepTypes, projectTypes, projectTypeSteps, companies, companyDetails, bolumler, uzmanliklar, kisiUzmanliklari, talepler, dosyalar].find((r) => r.error)
   if (failed?.error) throw failed.error
   return {
-    projects: projects.data as Project[],
+    projects: (projects.data as unknown as Project[]).map((p) => ({ ...p, teslim_at: p.teslim_at ?? null })),
     steps: (steps.data as unknown as Step[]).map((s) => ({ ...s, finish_photo_id: s.finish_photo_id ?? null })),
     assignees: assignees.data as Raw['assignees'],
     people: people.data as Profile[],
@@ -239,12 +247,14 @@ async function load(): Promise<Raw> {
     uzmanliklar: uzmanliklar.data as Uzmanlik[],
     kisiUzmanliklari: kisiUzmanliklari.data as KisiUzmanlik[],
     talepler: talepler.data as Talep[],
-    dosyalar: dosyalar.data as Dosya[],
+    dosyalar: (dosyalar.data as unknown as Dosya[]).map((d) => ({ ...d, musteriye: d.musteriye ?? false })),
     bolumReady: stage >= 7,
     ready,
     photoReady: stepsLoad.photoReady,
     bildirimler: bildirimLoad.rows,
     bildirimReady: bildirimLoad.ready,
+    anahtarlar,
+    reportReady: projectsLoad.reportReady,
     stepTypes: (stepTypes.data as unknown as StepType[]).map((t) => ({ ...t, uzmanlik_id: t.uzmanlik_id ?? null })),
     projectTypes: projectTypes.data as NamedItem[],
     projectTypeSteps: projectTypeSteps.data as ProjectTypeStep[],
@@ -255,6 +265,30 @@ async function load(): Promise<Raw> {
 
 const isMissingTable = (error: { code?: string; message?: string } | null) =>
   !!error && (error.code === '42P01' || error.code === 'PGRST205' || /could not find the table|relation .* does not exist/i.test(error.message ?? ''))
+
+// The delivery column (0011) tells whether codes, the report and delivery exist yet.
+async function loadProjects() {
+  const COLUMNS = 'id, code, name, due_date, project_type_id, company_id, created_at'
+  const query = (columns: string) => supabase.from('projects').select(columns).order('created_at')
+  const full = await query(`${COLUMNS}, teslim_at`)
+  if (!isMissingColumn(full.error)) return { result: full, reportReady: true }
+  return { result: await query(COLUMNS), reportReady: false }
+}
+
+async function loadDosyalar() {
+  const COLUMNS = 'id, project_id, step_id, ana, name, storage_path, size, mime, uploaded_by, created_at, eski_at, silindi'
+  const query = (columns: string) => supabase.from('dosyalar').select(columns).order('created_at')
+  const full = await query(`${COLUMNS}, musteriye`)
+  return isMissingColumn(full.error) ? query(COLUMNS) : full
+}
+
+/** Customer keys (0011). The database gives them only to Genel Müdür, IT and Bölüm Sorumluları. */
+async function loadAnahtarlar(): Promise<Raw['anahtarlar']> {
+  const { data, error } = await supabase.from('proje_anahtarlari').select('project_id, anahtar')
+  if (isMissingTable(error)) return []
+  if (error) throw error
+  return data as Raw['anahtarlar']
+}
 
 /** My alerts. The table comes with 0010; before it, there is no bell. */
 async function loadBildirimler(after0008: boolean): Promise<{ rows: Bildirim[]; ready: boolean }> {
@@ -325,6 +359,7 @@ function index(input: Raw): Workshop {
     if (d.step_id) push(dosyalarOfStep, d.step_id, d)
     else push(dosyalarOfProject, d.project_id, d)
   }
+  const anahtar = new Map(raw.anahtarlar.map((a) => [a.project_id, a.anahtar]))
   const steps = new Map<string, Step[]>()
   for (const s of raw.steps) {
     const list = steps.get(s.project_id)
@@ -368,6 +403,11 @@ function index(input: Raw): Workshop {
     projectsOf: (id) => raw.projects.filter((p) => p.company_id === id),
     typeStepsOf: (id) => typeSteps.get(id) ?? [],
     unread: raw.bildirimler.filter((b) => !b.read_at).length,
+    musteriKodu: (id) => {
+      const key = anahtar.get(id)
+      const code = projects.get(id)?.code
+      return key && code ? musteriKodu(code, key) : undefined
+    },
   }
 }
 
@@ -612,6 +652,29 @@ export async function fetchStepEvents(stepId: string, photoReady: boolean) {
   const { data, error } = await supabase.from('step_events').select(columns).eq('step_id', stepId).order('created_at')
   const events = ((data ?? []) as unknown as StepEvent[]).map((e) => ({ ...e, dosya_id: e.dosya_id ?? null }))
   return { events, error }
+}
+
+/** Every step's history in a project, oldest first: for the report. */
+export async function fetchProjectEvents(projectId: string, photoReady: boolean) {
+  const columns = `id, step_id, actor_id, kind, detail, created_at${photoReady ? ', dosya_id' : ''}`
+  const { data, error } = await supabase.from('step_events').select(columns).eq('project_id', projectId).order('created_at')
+  const events = ((data ?? []) as unknown as (StepEvent & { step_id: string })[]).map((e) => ({ ...e, dosya_id: e.dosya_id ?? null }))
+  return { events, error }
+}
+
+/** "Projeyi teslim et", or with false "Teslimi geri al" (0011). */
+export function projeTeslim(projectId: string, teslim = true) {
+  return supabase.rpc('proje_teslim', { p_project_id: projectId, p_teslim: teslim })
+}
+
+/** "Yeni kod": the customer code changes and the old one stops working. */
+export function musteriKoduYenile(projectId: string) {
+  return supabase.rpc('musteri_kodu_yenile', { p_project_id: projectId })
+}
+
+/** Ticks a photo or project file for the customer's report, or unticks it. */
+export function dosyaMusteriye(id: string, on: boolean) {
+  return supabase.rpc('dosya_musteriye', { p_id: id, p_musteriye: on })
 }
 
 /** Monday 00:00 of this week, local time. */

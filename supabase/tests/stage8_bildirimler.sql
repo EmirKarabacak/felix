@@ -69,7 +69,7 @@ insert into public.step_assignees (step_id, user_id) values
 select pg_temp.expect(pg_temp.alerted(:'worker', 'atandi', :'step1'), 'a person put on a step is told "Yeni iş"');
 reset role;
 select pg_temp.expect(
-  (select adim = 'Bildirimli iş' and proje = 'BLD-1 Bildirim projesi' and kim is not null and read_at is null and pushed_at is null
+  (select adim = 'Bildirimli iş' and proje = (select code || ' Bildirim projesi' from public.projects where id = :'project_id') and kim is not null and read_at is null and pushed_at is null
    from public.bildirimler where step_id = :'step1' and kind = 'atandi'),
   'the alert keeps the step, the project and who did it');
 set role authenticated;

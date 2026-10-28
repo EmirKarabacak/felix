@@ -6,7 +6,8 @@ import { Dialog, ErrorNote, Field, Icon, Spinner } from '../components/ui'
 import { useProfile } from '../lib/auth'
 import { t } from '../lib/i18n'
 import { canManage, supabase } from '../lib/supabase'
-import { canManageFiles, formatDay, isOpen, useWorkshop, type Project, type Workshop } from '../lib/workshop'
+import { tarihText } from '../lib/rapor'
+import { canManageFiles, formatDay, isFinished, isOpen, musteriKoduYenile, projeTeslim, useWorkshop, type Project, type Workshop } from '../lib/workshop'
 import { ProgressStrip, progressText } from './Projeler'
 
 export function ProjeDetay() {
@@ -67,7 +68,14 @@ export function ProjeDetay() {
       <div className="page-head">
         <div>
           <div className="mono">
-            {[project.code, project.due_date ? t('Teslim {date}', { date: formatDay(project.due_date) }) : t('Teslim tarihi yok')]
+            {[
+              project.code,
+              project.teslim_at
+                ? t('Teslim edildi {date}', { date: formatDay(project.teslim_at) })
+                : project.due_date
+                  ? t('Teslim {date}', { date: formatDay(project.due_date) })
+                  : t('Teslim tarihi yok'),
+            ]
               .filter(Boolean)
               .join(' · ')}
           </div>
@@ -93,6 +101,10 @@ export function ProjeDetay() {
         <ProgressStrip steps={steps} />
         <span className="sub">{progressText(steps)}</span>
       </div>
+
+      {data.reportReady && manages && isFinished(steps) ? <Teslim project={project} /> : null}
+
+      {data.reportReady && manages ? <MusteriKodu project={project} data={data} /> : null}
 
       {manages && company && contact && hasContact ? (
         <section className="card rows facts customer" aria-label={t('Firma')}>
@@ -307,7 +319,12 @@ function EditProjectDialog({ project, data, onClose }: { project: Project; data:
       () =>
         supabase
           .from('projects')
-          .update({ name: name.trim(), code: code.trim() || null, due_date: due || null, company_id: companyId || null })
+          .update({
+            name: name.trim(),
+            ...(data.reportReady ? {} : { code: code.trim() || null }),
+            due_date: due || null,
+            company_id: companyId || null,
+          })
           .eq('id', project.id),
       onClose,
     )
@@ -334,11 +351,14 @@ function EditProjectDialog({ project, data, onClose }: { project: Project; data:
           )}
         </Field>
         <div className="pair">
-          <Field label={t('Proje kodu')}>
-            {(id) => (
-              <input id={id} className="input" value={code} onChange={(e) => setCode(e.target.value)} maxLength={40} />
-            )}
-          </Field>
+          {/* After 0011 every project gets its code by itself, and it never changes. */}
+          {data.reportReady ? null : (
+            <Field label={t('Proje kodu')}>
+              {(id) => (
+                <input id={id} className="input" value={code} onChange={(e) => setCode(e.target.value)} maxLength={40} />
+              )}
+            </Field>
+          )}
           <Field label={t('Teslim tarihi')}>
             {(id) => <input id={id} className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} />}
           </Field>
@@ -376,5 +396,137 @@ function EditProjectDialog({ project, data, onClose }: { project: Project; data:
         </button>
       )}
     </Dialog>
+  )
+}
+
+/**
+ * Once every step is done: the report, and "Projeyi teslim et" for the day
+ * the product leaves the factory (it may wait there until its delivery date).
+ */
+function Teslim({ project }: { project: Project }) {
+  const { change } = useWorkshop()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function run(teslim: boolean) {
+    setBusy(true)
+    setError(await change(() => projeTeslim(project.id, teslim)))
+    setBusy(false)
+  }
+
+  return (
+    <section className="card deliver" aria-label={t('Teslim')}>
+      <div className="deliver-text">
+        <strong>{project.teslim_at ? t('Teslim edildi: {date}', { date: tarihText(project.teslim_at) }) : t('Bütün adımlar bitti.')}</strong>
+        <span className="sub">
+          {project.teslim_at
+            ? t('Proje raporu hazır.')
+            : t('Proje raporu hazır. Ürün fabrikadan çıktığı gün "Projeyi teslim et" deyin.')}
+        </span>
+      </div>
+      <div className="deliver-actions">
+        <Link to={`/projeler/${project.id}/rapor`} className="btn btn-tint press">
+          <Icon name="doc" size={18} />
+          {t('Rapor')}
+        </Link>
+        {project.teslim_at ? (
+          <button type="button" className="btn btn-quiet press" disabled={busy} onClick={() => void run(false)}>
+            {t('Teslimi geri al')}
+          </button>
+        ) : (
+          <button type="button" className="btn btn-go press" disabled={busy} onClick={() => void run(true)}>
+            {t('Projeyi teslim et')}
+          </button>
+        )}
+      </div>
+      <ErrorNote>{error}</ErrorNote>
+    </section>
+  )
+}
+
+/** The code the customer types to see the report, with "Kopyala" and "Yeni kod". */
+function MusteriKodu({ project, data }: { project: Project; data: Workshop }) {
+  const { change } = useWorkshop()
+  const kod = data.musteriKodu(project.id)
+  const [confirm, setConfirm] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  if (!kod) return null
+
+  async function renew() {
+    setBusy(true)
+    setError(await change(() => musteriKoduYenile(project.id)))
+    setBusy(false)
+    setConfirm(false)
+  }
+
+  return (
+    <section className="card customer-code" aria-label={t('Müşteri kodu')}>
+      <div className="code-row">
+        <span>
+          <span className="field-label">{t('Müşteri kodu')}</span>
+          <span className="mono code-value">{kod}</span>
+        </span>
+        <span className="code-actions">
+          <CopyButton text={kod} />
+          {confirm ? null : (
+            <button type="button" className="btn btn-quiet press" onClick={() => setConfirm(true)}>
+              {t('Yeni kod')}
+            </button>
+          )}
+        </span>
+      </div>
+      {confirm ? (
+        <div className="code-confirm">
+          <span className="sub">{t('Eski kod çalışmaz olur. Müşteriye yeni kodu göndermeniz gerekir.')}</span>
+          <span className="code-actions">
+            <button type="button" className="btn btn-quiet press" onClick={() => setConfirm(false)}>
+              {t('Vazgeç')}
+            </button>
+            <button type="button" className="btn btn-danger press" disabled={busy} onClick={() => void renew()}>
+              {t('Yeni kod oluştur')}
+            </button>
+          </span>
+        </div>
+      ) : (
+        <span className="sub">{t('Müşteri bu kodla, giriş sayfasındaki "Proje raporu sorgula" bölümünden projesinin raporunu görür.')}</span>
+      )}
+      <ErrorNote>{error}</ErrorNote>
+    </section>
+  )
+}
+
+/** Copies a text, and says so for a moment. */
+export function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const timer = window.setTimeout(() => setCopied(false), 2000)
+    return () => window.clearTimeout(timer)
+  }, [copied])
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // Older browsers: copy through a hidden text box.
+      const box = document.createElement('textarea')
+      box.value = text
+      box.setAttribute('readonly', '')
+      box.style.position = 'fixed'
+      box.style.opacity = '0'
+      document.body.appendChild(box)
+      box.select()
+      document.execCommand('copy')
+      box.remove()
+    }
+    setCopied(true)
+  }
+
+  return (
+    <button type="button" className="btn btn-tint press" onClick={() => void copy()} aria-live="polite">
+      <Icon name={copied ? 'check' : 'clip'} size={18} />
+      {copied ? t('Kopyalandı') : t('Kopyala')}
+    </button>
   )
 }

@@ -46,6 +46,7 @@ process.env.FELIX_SETUP_CODE ??= 'kurulum'
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 const { handleSetup, handleUsers, run } = await import('../api/_lib/core.js')
 const { handleBildirim } = await import('../api/_lib/bildirim.js')
+const { handleRapor } = await import('../api/_lib/rapor.js')
 
 type Json = Record<string, any>
 const send = (res: ServerResponse, status: number, body?: unknown, headers: Record<string, string> = {}) => {
@@ -344,7 +345,7 @@ createServer(async (req, res) => {
     if (url.pathname.startsWith('/auth/v1')) return await auth(req, res, url.pathname.slice(8), url.searchParams)
     if (url.pathname.startsWith('/rest/v1')) return await rest(req, res, url.pathname.slice(8), url.searchParams)
     if (url.pathname.startsWith('/storage/v1')) return await storage(req, res, url.pathname.slice(11), url.searchParams)
-    const api = { '/api/setup': handleSetup, '/api/users': handleUsers, '/api/bildirim': handleBildirim }[url.pathname]
+    const api = { '/api/setup': handleSetup, '/api/users': handleUsers, '/api/bildirim': handleBildirim, '/api/rapor': handleRapor }[url.pathname]
     if (api) {
       const reply = await run(api, {
         method: req.method ?? 'GET',

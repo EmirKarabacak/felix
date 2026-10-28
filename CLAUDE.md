@@ -131,6 +131,31 @@ their phones and press start / finish / report a problem.
   the server reads; nothing to set in Vercel. Alert wording lives in
   `shared/bildirim.ts` with Turkish and English side by side (used by the bell
   and the server, so not through `t()`).
+- Project report (Update 4, 0011; Emir paused chat for it). Project codes are
+  automatic and never change: AF-26-014 (Aquafelix, year in Istanbul time,
+  running number per year from `proje_kod_sayaci`, never reused); the code
+  box is gone from the forms. Each project has a four-character customer key
+  (`proje_anahtarlari`, no 0/O/1/I, seen only by Genel Müdür, IT and Bölüm
+  Sorumluları); the customer code is code + key (AF-26-014-K7PX), shown on the
+  project page with "Kopyala" and "Yeni kod" (the old one stops working). The
+  report exists by itself once every step is done (last step is usually
+  "Paketleme ve sevkiyat"); "Projeyi teslim et" is separate, for the day the
+  product leaves the factory (products often wait there), saves
+  `projects.teslim_at`, undoable. Report page `/projeler/<id>/rapor`
+  (managers only): İç rapor (dates, days early/late, each step's people,
+  times, work time without problem/approval waits, send-backs, problems,
+  talepler, finish photos, per person; everyone assigned counts as having done
+  the step, Emir: no ticking who worked, no planned times) and Müşteri raporu
+  (no names; only photos and files a manager ticked, `dosyalar.musteriye`).
+  Both on the Aquafelix letterhead (`public/aquafelix-logo.png` centred at the
+  top, the address line at the bottom, repeated on each printed page) and
+  saved with "PDF olarak kaydet" (the browser's print). Customers use "Proje
+  raporu sorgula" on the sign-in page (`/rapor`, also `/rapor?kod=...`): before
+  every step is done only "Projeniz hazırlanıyor". It goes through
+  `POST /api/rapor`, which calls `musteri_raporu()` (server only; counts wrong
+  codes: 30 in 10 minutes makes everyone wait). Company: legal name "Arı Arıtım
+  Sanayi ve Ticaret Limited Şirketi", brand "Aquafelix". Emir still wants two
+  report versions; the document format may be revisited later.
 - Chat, when built, goes on projects (one conversation per project), visible to
   workers too. The "Sorun bildir" button stays and should also post into the
   project chat.
@@ -193,7 +218,10 @@ SwiftUI's ConcentricRectangle):
   in the Supabase SQL Editor (copy from GitHub, paste, Run). So every migration
   must be safe to run more than once and must also work as one transaction.
   Push the front end so it still works before he has run the new file, and tell
-  him clearly which file to run. 0001 to 0010 have been run
+  him clearly which file to run. 0001 to 0010 have been run; 0011 (project
+  report) is new: Claude runs it with the connector right after its PR merges
+  (it has no `drop` lines on purpose; before it runs there are no codes,
+  report or delivery: `reportReady` in `workshop.tsx`)
   (0008 also created the Storage bucket and its access rules; 0010 added
   notifications, and before it runs there is no bell, card or switch:
   `bildirimReady` in `workshop.tsx`). The Supabase
@@ -216,12 +244,13 @@ access rules, plus just enough of Supabase's auth, data and storage API).
 ```
 ./supabase/tests/run.sh                                 # database access rules
 scripts/local-up.sh && node scripts/e2e-stage1.mjs      # sign-in, roles, Ekip, uzmanlık, usernames, Ayarlar (47)
-scripts/local-up.sh && node scripts/e2e-stage2.mjs      # projects, steps, workers (49)
+scripts/local-up.sh && node scripts/e2e-stage2.mjs      # projects, steps, workers (50)
 scripts/local-up.sh && node scripts/e2e-companies.mjs   # Firmalar (23)
 scripts/local-up.sh && node scripts/e2e-approval.mjs    # approval by uzmanlık level, Takvim (31)
 FELIX_MIGRATIONS_UNTIL=0007 scripts/local-up.sh && node scripts/e2e-0008.mjs  # runs 0008 mid-test; Uzmanlık, Talepler, Dosyalar (42)
 FELIX_MIGRATIONS_UNTIL=0008 scripts/local-up.sh && node scripts/e2e-update2.mjs  # runs 0009 mid-test; finish photo, history, Özet (31)
 FELIX_MIGRATIONS_UNTIL=0009 scripts/local-up.sh && node scripts/e2e-update3.mjs  # runs 0010 mid-test; bell, phone alerts, Ayarlar switch (45)
+FELIX_MIGRATIONS_UNTIL=0010 scripts/local-up.sh && node scripts/e2e-update4.mjs  # runs 0011 mid-test; codes, delivery, reports, customer page (51)
 scripts/local-up.sh && node scripts/e2e-language.mjs    # English, dark theme, Ayarlar switches, Ekip labels (25)
 npx tsc --noEmit && npx tsx scripts/check-i18n.ts       # types, and every text has English
 ```
@@ -243,15 +272,16 @@ Takvim, keyboard handling on phones, icons, the four fixed bölümler, Uzmanlık
 Talepler, Dosyalar (project and step files with Eski sürümler), self-reload on
 a new version, İşlerim for managers, Ayarlar, English version, dark theme
 (Update 1), finish photo, step history, Özet (Update 2), notifications
-(Update 3).
+(Update 3), project report, codes and delivery (Update 4).
 
 Agreed order of the next updates; each goes to Emir before going live and
 starts only when he says go:
-- Update 4 (Emir moved notifications ahead of it): chat on each project, seen
-  by everyone; "Sorun bildir" also posts into it; a new chat message also
+- Update 5 (paused by Emir for the report): chat on each project, seen by
+  everyone; "Sorun bildir" also posts into it; a new chat message also
   becomes an alert.
-- Not wanted: weekly workload view. Not chosen yet: quality checklist, planned
-  durations per step type, copy a project, customer PDF, QR label, Kılavuz
+- Not wanted: weekly workload view; planned durations per step type (Emir:
+  products are tailor-made). Not chosen yet: quality checklist, copy a
+  project, QR label, Kılavuz
   (manuals per bölüm).
 
 Open questions to Emir:
